@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="es"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"on-tertiary-fixed":"#3d0600","background":"#111317","primary-fixed-dim":"#ffb3b0","surface-variant":"#333538","surface-container-high":"#282a2d","error-container":"#93000a","on-secondary":"#41008b","primary":"#ffb3b0","secondary-container":"#6c04de","secondary-fixed-dim":"#d4bbff","on-error-container":"#ffdad6","secondary":"#d4bbff","on-secondary-fixed-variant":"#5d00c2","on-tertiary-container":"#5f0e00","tertiary-fixed-dim":"#ffb4a3","tertiary":"#ffb4a3","surface-container-low":"#1a1c1f","surface-bright":"#37393d","outline":"#a98988","inverse-on-surface":"#2f3034","on-background":"#e2e2e6","error":"#ffb4ab","on-secondary-container":"#d4baff","surface":"#111317","tertiary-fixed":"#ffdad2","on-tertiary":"#630f00","on-surface-variant":"#e1bebd","on-primary":"#680010","surface-container":"#1e2023","on-primary-container":"#64000f","surface-container-highest":"#333538","primary-container":"#ff5e62","surface-container-lowest":"#0c0e11","inverse-surface":"#e2e2e6","on-primary-fixed-variant":"#91061d","inverse-primary":"#b32631","on-primary-fixed":"#410007","outline-variant":"#594040","secondary-fixed":"#ebdcff","tertiary-container":"#f96746","surface-tint":"#ffb3b0","surface-dim":"#111317","on-surface":"#e2e2e6","on-error":"#690005","primary-fixed":"#ffdad8","on-secondary-fixed":"#270058","on-tertiary-fixed-variant":"#8c1900"},borderRadius:{DEFAULT:"0.25rem",lg:"0.5rem",xl:"0.75rem",full:"9999px"},spacing:{"space-md":"0.75rem",gutter:"1rem","space-lg":"1.25rem","space-sm":"0.5rem","space-xs":"0.25rem",margin:"1.5rem","space-xl":"2rem"},fontFamily:{"display-lg":["Plus Jakarta Sans"],"body-lg":["Inter"],"label-lg":["Inter"],"label-md":["Inter"],"body-sm":["Inter"],"body-md":["Inter"],"title-md":["Plus Jakarta Sans"],"headline-lg":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"label-sm":["Inter"],"headline-sm":["Plus Jakarta Sans"]},fontSize:{"display-lg":["36px",{lineHeight:"44px",letterSpacing:"-0.02em",fontWeight:"700"}],"body-lg":["15px",{lineHeight:"22px",letterSpacing:"-0.005em",fontWeight:"400"}],"label-lg":["13px",{lineHeight:"18px",letterSpacing:"0.01em",fontWeight:"500"}],"label-md":["11px",{lineHeight:"14px",letterSpacing:"0.03em",fontWeight:"600"}],"body-sm":["12px",{lineHeight:"16px",fontWeight:"400"}],"body-md":["13px",{lineHeight:"18px",fontWeight:"400"}],"title-md":["15px",{lineHeight:"20px",letterSpacing:"-0.01em",fontWeight:"600"}],"headline-lg":["28px",{lineHeight:"36px",letterSpacing:"-0.02em",fontWeight:"700"}],"headline-md":["22px",{lineHeight:"28px",letterSpacing:"-0.015em",fontWeight:"600"}],"label-sm":["10px",{lineHeight:"12px",letterSpacing:"0.05em",fontWeight:"600"}],"headline-sm":["18px",{lineHeight:"24px",letterSpacing:"-0.01em",fontWeight:"600"}]}}}};</script></head><body class="bg-surface-container-lowest font-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-60 bg-surface-container-low z-50 flex flex-col justify-between p-space-md select-none"><div class="flex flex-col gap-space-lg"><div class="flex items-center justify-between px-space-xs"><div class="flex items-center gap-space-sm"><img alt="Video Factory Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/ALJJyrBkEFqeMP3wnTg37LACBI_EBZWEQOYRoyohYEzVE07UvppRog33BGeiTNzVy-xzrD65t_s8iIm3dGFOZct8sTJSyZZ8BhF-b-rkRMr5OtE8K9j7kg7IiZSHnKQJHDTuSoSWOEmWgqEIPorjs1Ox5eSnEKzogUcR9_GJIyV2rUCTzDblu0JaNQW-CSGlWOUq2_83iKtj5er9R-cTpyIZfOyLc9bXK2LNrn2FtJhWW6sd"/><span class="font-title-md text-title-md text-on-surface tracking-tight font-bold">Video Factory</span></div><span class="font-label-sm text-label-sm bg-surface-container-highest text-secondary px-space-xs py-0.5 rounded-full">v2.4 Pro</span></div><div class="flex items-center justify-between p-space-sm rounded-lg bg-surface-container"><div class="flex items-center gap-space-sm min-w-0"><div class="w-7 h-7 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-label-md text-label-md shrink-0">TB</div><div class="flex flex-col min-w-0"><span class="font-label-md text-label-md text-on-surface truncate">Trattoria Bella Napoli</span><span class="font-label-sm text-label-sm text-secondary truncate">Activo</span></div></div><span class="material-symbols-outlined text-on-surface-variant text-base cursor-pointer hover:text-on-surface">unfold_more</span></div><nav class="flex flex-col gap-space-xs" data-active-classes="bg-surface-container-high text-primary font-bold"><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="inicio" href="#"><span class="material-symbols-outlined text-lg">dashboard</span><span class="font-label-lg text-label-lg">Inicio</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="clientes" href="#"><span class="material-symbols-outlined text-lg">group</span><span class="font-label-lg text-label-lg">Clientes</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="crear" href="#"><span class="material-symbols-outlined text-lg">movie_filter</span><span class="font-label-lg text-label-lg">Crear</span></a><a aria-current="page" class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg transition-all bg-surface-container-high text-primary font-bold" data-path="videos" href="#"><span class="material-symbols-outlined text-lg">video_library</span><span class="font-label-lg text-label-lg">Videos</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="musica" href="#"><span class="material-symbols-outlined text-lg">music_note</span><span class="font-label-lg text-label-lg">Música</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="ajustes" href="#"><span class="material-symbols-outlined text-lg">settings</span><span class="font-label-lg text-label-lg">Ajustes</span></a></nav></div><div class="flex flex-col gap-space-sm pt-space-md bg-surface-container-lowest/60 p-space-sm rounded-xl"><div class="flex flex-col gap-1"><div class="flex justify-between items-center text-on-surface-variant font-label-sm text-label-sm"><span>Plan Claude</span><span class="text-primary font-semibold">82% • 14h rest.</span></div><div class="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden"><div class="h-full bg-primary-container rounded-full" style="width: 82%"></div></div></div><div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm pt-space-xs"><span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>ffmpeg: OK</span><span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>whisper: OK</span></div></div></aside><div class="pl-60 min-h-screen flex flex-col bg-surface-container-lowest"><header class="fixed top-0 left-60 right-0 h-16 bg-surface/85 backdrop-blur-xl z-40 flex items-center justify-between px-space-xl"><div class="flex-1 max-w-xl"><div class="relative flex items-center w-full"><span class="material-symbols-outlined absolute left-space-md text-on-surface-variant text-lg pointer-events-none">search</span><input class="w-full h-9 pl-10 pr-space-md rounded-lg bg-surface-container font-body-sm text-body-sm text-on-surface placeholder:text-on-surface-variant/70 focus:outline-none focus:ring-1 focus:ring-primary-container transition-all" placeholder="Buscar cliente, video, canción o pegar enlace directo..." type="text"/></div></div><div class="flex items-center gap-space-md"><div class="flex items-center gap-space-sm px-space-md py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high cursor-pointer transition-colors"><div class="w-5 h-5 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-label-sm text-label-sm">TB</div><div class="flex flex-col text-left"><span class="font-label-md text-label-md text-on-surface leading-tight">Trattoria Bella Napoli</span><span class="font-label-sm text-label-sm text-secondary leading-tight">Contenido completo</span></div><span class="material-symbols-outlined text-on-surface-variant text-sm">expand_more</span></div><div class="flex items-center gap-space-xs px-space-sm py-1.5 rounded-full bg-surface-container-high cursor-pointer hover:bg-surface-bright transition-colors"><span class="material-symbols-outlined text-primary text-base animate-pulse">notifications_active</span><span class="font-label-sm text-label-sm text-on-surface">3 en proceso</span><span class="w-1 h-1 rounded-full bg-on-surface-variant"></span><span class="font-label-sm text-label-sm text-error">1 error</span></div><div class="flex items-center gap-space-sm pl-space-xs cursor-pointer"><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-1 ring-surface-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkFSC2CKLBKGh_A8d7RdgLRM2IT1hNu_lVAw_YKuBmn3SWZtOtSWuaHrZqCAc9fOFR6vEqIsWA3bfaXYyfzoVtQoKneG_Wnz_jz7uebES_9OvrM1hvXsagUqtTBZUO_ZZhi-w4BBuHIncSCA_o_4fW23DqXEBHX_Y5fkanYQjWvcmCld_OiEF7Y6YIY7_incesGPBrfczp5UW4kLXsoGOFFJUN2-MeHq2zrAEOngE"/></div></div></header><main class="relative pt-16 w-full flex-1"><div class="flex flex-col w-full relative">
+<!-- Ambient Atmospheric Backdrops -->
+<div class="absolute -top-12 right-1/4 w-96 h-96 bg-secondary-container/15 rounded-full blur-3xl pointer-events-none -z-10"></div>
+<div class="absolute top-80 left-10 w-80 h-80 bg-primary-container/10 rounded-full blur-3xl pointer-events-none -z-10"></div>
+<!-- Main Workstation Canvas (Dimmed & Blurred background for Modal Focus) -->
+<div class="w-full px-space-xl py-space-lg flex flex-col gap-space-lg select-none opacity-40 blur-sm pointer-events-none transition-all duration-300">
+<!-- Gallery Top Bar: Client Tabs & Format Engine -->
+<div class="flex items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-xs bg-surface-container p-1 rounded-xl">
+<button class="px-space-md py-1.5 rounded-lg bg-surface-container-high text-on-surface font-label-md text-label-md shadow-sm">Todos (48)</button>
+<button class="px-space-md py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-label-md text-label-md">Trattoria Bella Napoli (14)</button>
+<button class="px-space-md py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-label-md text-label-md">Studio Glow Spa (21)</button>
+<button class="px-space-md py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface font-label-md text-label-md">Urban Barber (13)</button>
+</div>
+<div class="flex items-center gap-space-sm">
+<div class="flex items-center gap-space-xs bg-surface-container p-1 rounded-xl">
+<span class="px-space-sm py-1 rounded bg-surface-container-highest text-primary font-label-sm text-label-sm">9:16 Shorts</span>
+<span class="px-space-sm py-1 text-on-surface-variant font-label-sm text-label-sm">Reels IG</span>
+<span class="px-space-sm py-1 text-on-surface-variant font-label-sm text-label-sm">TikTok HD</span>
+</div>
+<div class="flex items-center gap-1.5 px-space-md py-1.5 rounded-lg bg-primary-container text-on-primary font-label-lg text-label-lg shadow-lg">
+<span class="material-symbols-outlined text-base">add_circle</span>
+          Nuevo Video
+        </div>
+</div>
+</div>
+<!-- Filter Pill Badges -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Filtrar por estado:</span>
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm">Todos</span>
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container text-secondary font-label-sm text-label-sm flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>Con Letra Dinámica (32)
+        </span>
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container text-primary font-label-sm text-label-sm flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>Renderizando (3)
+        </span>
+<span class="px-space-sm py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">Finalizados</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-mono">Render engine: NVENC_AV1 • Whisper-v3</span>
+</div>
+<!-- Background 9:16 Video Asset Grid -->
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-space-md">
+<!-- Card 1 -->
+<div class="relative flex flex-col rounded-xl overflow-hidden bg-surface-container shadow-md">
+<div class="relative w-full aspect-[9/16] bg-surface-container-lowest">
+<img class="w-full h-full object-cover" data-alt="A cinematic dramatic 9:16 vertical video frame of an artisan chef tossing fresh pasta in a dark moody Italian rustic kitchen with steam and golden warm rim lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdvo5h-CUjpdI4pjMSUgVxLuiM3dEfMmkcIk4x5jiP-CORIUYMgvyL055mca11NhATiqXE_UpnnCYGzHoTuDZ1iGrAQLIoMeFzoWizznYIvYdip10KfPJVhPBl2b9GWnzomjvaQifMlxG-e847HS-Qj_uU3h4nphUo9iCOQE_g83jof0V-Kg_4wz5qqJ2caRDbIblTO7i4QVt3G5_UKXPA3vuRWZJVxAVeja72r_E"/>
+<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-secondary font-label-sm text-label-sm backdrop-blur-md">TikTok</span>
+<span class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-on-surface font-label-sm text-label-sm font-mono">00:28</span>
+</div>
+<div class="p-space-sm flex flex-col gap-1">
+<span class="font-label-md text-label-md text-on-surface truncate">Pizza Napoletana Secreta</span>
+<span class="font-label-sm text-label-sm text-secondary truncate">Trattoria Bella Napoli</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="relative flex flex-col rounded-xl overflow-hidden bg-surface-container shadow-md">
+<div class="relative w-full aspect-[9/16] bg-surface-container-lowest">
+<img class="w-full h-full object-cover" data-alt="Close-up vertical shot of luxury spa facial treatment with natural radiant serum droplets illuminated with soft cyan neon edge lighting in dark ambient room." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3tT4nXMVT4wAMqzcs-mn_9qp4I9UtcGzmzSOOAZZH3s4UeJFKEfGGP72KQVBdhzgYGX3WeOa2QDD0rW2xxcRF3fnB0Bz1EzbGVDuW0GyKIx1bgn-rW2A1wCRDQHkODfjwqsb_5xVDlqnWMkDTsRtXHdjrDcjh_tqZcJduL7dH5yYNMxUXbfb_faPstLka_G5VvjN-hkdtlACZGjhPuUKxI2WUR01EDj0C6kNCqdI"/>
+<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-primary font-label-sm text-label-sm backdrop-blur-md">Reels</span>
+<span class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-on-surface font-label-sm text-label-sm font-mono">00:41</span>
+</div>
+<div class="p-space-sm flex flex-col gap-1">
+<span class="font-label-md text-label-md text-on-surface truncate">Glow Facial Hydration</span>
+<span class="font-label-sm text-label-sm text-primary truncate">Studio Glow Spa</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="relative flex flex-col rounded-xl overflow-hidden bg-surface-container shadow-md">
+<div class="relative w-full aspect-[9/16] bg-surface-container-lowest">
+<img class="w-full h-full object-cover" data-alt="Vertical barber shop shot showing sharp straight razor edge styling on customer beard with cinematic smoke and dramatic vintage barber lamp reflections." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1rbXs0PYliyxxwqvzIOPQPrYtQBRkoZPmEx3Q9l34yivCzLa4kCS_z_zFSA5i3k1fIzydBFsNi6ky6jJo4pOt9q-0sBZVtPHFR0WZEchcQ2ZIL1IeGItbiHO75jtty0ZS_22Pq72-_BAQNssJy1K_6VGreSIGH_bzvgmQbS2tlFiFb29Lc3nkSv9R38PO_y6fY5qJiVft1eccy41tKiWmxMsMSq6b5X_nLFj6pgg"/>
+<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-secondary font-label-sm text-label-sm backdrop-blur-md">Shorts</span>
+<span class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-on-surface font-label-sm text-label-sm font-mono">00:19</span>
+</div>
+<div class="p-space-sm flex flex-col gap-1">
+<span class="font-label-md text-label-md text-on-surface truncate">Fade Perfecto Masterclass</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Urban Barber</span>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="relative flex flex-col rounded-xl overflow-hidden bg-surface-container shadow-md">
+<div class="relative w-full aspect-[9/16] bg-surface-container-lowest">
+<img class="w-full h-full object-cover" data-alt="Vertical 9:16 angle of pouring rich red Chianti wine into elegant glass against dark Italian restaurant background with candlelight bokeh." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4RCEpFwuC_-zKhVY1XFG8-1IWqPohzDPyCZPOgBtyMnIMCKlki8kR_lYI_udBfojHYBU-1hSZfyqTtFlaLPbPui7x3kGIblKByvoJFisAJbM6uu9KH1bnP3eqZ1qHW1dG4Gb-s1MuajFYvIlngvcoJlxJL5m7V15g5oV6OMhkEo0xSXpvUSvmAf7lhFRcXCaYbHbDXOkONMsK4L7LlhS7QUeRYBlwpFvt6cc0WMc"/>
+<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-secondary font-label-sm text-label-sm backdrop-blur-md">Reels</span>
+<span class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-on-surface font-label-sm text-label-sm font-mono">00:34</span>
+</div>
+<div class="p-space-sm flex flex-col gap-1">
+<span class="font-label-md text-label-md text-on-surface truncate">Vino Reserva de la Casa</span>
+<span class="font-label-sm text-label-sm text-secondary truncate">Trattoria Bella Napoli</span>
+</div>
+</div>
+<!-- Card 5 -->
+<div class="relative flex flex-col rounded-xl overflow-hidden bg-surface-container shadow-md">
+<div class="relative w-full aspect-[9/16] bg-surface-container-lowest">
+<img class="w-full h-full object-cover" data-alt="Ultra slow motion splash of espresso into ceramic cup vertical studio lighting deep blacks vibrant crema." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDFjZaybSsZo5LpjeJM4ZgOjkMlHG9bTGoZeFVyuNKIscxI9uLgmbw5wUL9kMIdfEF0rK3GdtDwEvO9JVILiPdh7oV_3ZoNWBXAAIP8XcQsUehezGC2fkiJISazliTo1jXjb4ZS59SjYkEs1FzDyW_uUl-XkuX-YpqeZF6zJFmWiZgR5SM8coqF7DuENu_1PxBbEu4hOhicozyd_yctGmUW_TF989BWck9OSWyji7A"/>
+<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-primary font-label-sm text-label-sm backdrop-blur-md">TikTok</span>
+<span class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-on-surface font-label-sm text-label-sm font-mono">00:15</span>
+</div>
+<div class="p-space-sm flex flex-col gap-1">
+<span class="font-label-md text-label-md text-on-surface truncate">Morning Caffeine Kick</span>
+<span class="font-label-sm text-label-sm text-primary truncate">Studio Glow Spa</span>
+</div>
+</div>
+<!-- Card 6 -->
+<div class="relative flex flex-col rounded-xl overflow-hidden bg-surface-container shadow-md">
+<div class="relative w-full aspect-[9/16] bg-surface-container-lowest">
+<img class="w-full h-full object-cover" data-alt="Hair pomade texturing detail macro shot in dark moody urban barbershop warm ambient light vertical format." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbARt_oMilN85ByxrEvtfq-ofZbUxcQ3UvGhjsyJkPfyJucN_Wt1trwIx0QcfeAR5DAVKKCoXpFZaCIn8fFAd-WETSSYQDB62Y6u0q3E9EIFo1_o5EGD-FSW1PoUboQLfFTFij0vjaQG44XosaMAnIDmp43gHtLN9ICtdxVyjNCr0R2DTxT2sWF-uEwE61l5WfLiAbK-tbr2MZeq1nvj0Qn-M4ktrTeIL_Rmk3X_k"/>
+<span class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-secondary font-label-sm text-label-sm backdrop-blur-md">Shorts</span>
+<span class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-container-lowest/80 text-on-surface font-label-sm text-label-sm font-mono">00:22</span>
+</div>
+<div class="p-space-sm flex flex-col gap-1">
+<span class="font-label-md text-label-md text-on-surface truncate">Texturizado Mate Cera</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Urban Barber</span>
+</div>
+</div>
+</div>
+</div>
+<!-- FLOATING MODAL OVERLAY: Dynamic Subtitle Studio Engine -->
+<div class="fixed inset-0 top-16 left-60 z-50 flex items-center justify-center p-space-lg bg-surface-container-lowest/85 backdrop-blur-xl overflow-y-auto">
+<div class="w-full max-w-5xl bg-surface-container-low rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[92vh] my-auto">
+<!-- Modal Header -->
+<div class="flex items-center justify-between px-space-xl py-space-md bg-surface-container">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-primary-container/20 flex items-center justify-center text-primary-container shadow-sm">
+<span class="material-symbols-outlined text-2xl">subtitles</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-sm">
+<span class="font-headline-sm text-headline-sm text-on-surface">Ponerle Letra Dinámica al Video</span>
+<span class="px-space-xs py-0.5 rounded-full bg-secondary-container/30 text-secondary font-label-sm text-label-sm">IA Whisper-v3 Sync</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Video activo: <strong class="text-on-surface">Trattoria_Napoletana_04_Reel.mp4</strong> (00:28.40)</span>
+</div>
+</div>
+<!-- Language Dual/Single Switcher -->
+<div class="flex items-center gap-space-sm">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Modo de Idioma:</span>
+<div class="flex bg-surface-container-highest p-0.5 rounded-lg" id="langSwitch">
+<button class="px-space-sm py-1 rounded font-label-sm text-label-sm bg-primary-container text-on-primary shadow-sm transition-all flex items-center gap-1" id="btn-dual" onclick="setLangMode('dual')">
+<span class="material-symbols-outlined text-xs">translate</span> Español + Inglés
+            </button>
+<button class="px-space-sm py-1 rounded font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface transition-all" id="btn-es" onclick="setLangMode('es')">
+              Solo ES
+            </button>
+<button class="px-space-sm py-1 rounded font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface transition-all" id="btn-en" onclick="setLangMode('en')">
+              Solo EN
+            </button>
+</div>
+<button class="w-8 h-8 rounded-lg bg-surface-container-highest flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-bright transition-colors">
+<span class="material-symbols-outlined text-lg">close</span>
+</button>
+</div>
+</div>
+<!-- Modal Body (Two-Column Layout: Visual Controls vs Live Real-time Monitor) -->
+<div class="grid grid-cols-12 gap-0 overflow-y-auto">
+<!-- Left Side: Effect Picker, Styling & Verse Dual-Editor (7 cols) -->
+<div class="col-span-7 p-space-xl flex flex-col gap-space-lg bg-surface-container-low overflow-y-auto">
+<!-- Section 1: 5 Visual Dynamic Effects Picker -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-base">auto_awesome</span>
+                Efectos Cinéticos de Letra (Viral Short-Form)
+              </span>
+<span class="font-label-sm text-label-sm text-secondary font-mono">5 preajustes calibrados</span>
+</div>
+<!-- Effect Cards Grid -->
+<div class="grid grid-cols-5 gap-space-xs">
+<!-- Effect 1: Karaoke Rítmico -->
+<div class="effect-card cursor-pointer p-space-xs rounded-xl bg-surface-container hover:bg-surface-container-high transition-all flex flex-col items-center text-center gap-1.5 shadow-md" id="fx-karaoke" onclick="selectEffect('karaoke')">
+<div class="w-full h-12 rounded-lg bg-surface-container-lowest flex items-center justify-center overflow-hidden relative">
+<span class="font-headline-sm text-headline-sm font-black text-primary-container tracking-wider drop-shadow-[0_0_8px_rgba(255,94,98,0.7)] animate-pulse">SABOR</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface leading-tight font-semibold">Karaoke Rítmico</span>
+<span class="font-label-sm text-[9px] text-on-surface-variant">Gradiente dinámico</span>
+</div>
+<!-- Effect 2: Pastilla TikTok -->
+<div class="effect-card cursor-pointer p-space-xs rounded-xl bg-surface-container hover:bg-surface-container-high transition-all flex flex-col items-center text-center gap-1.5" id="fx-pill" onclick="selectEffect('pill')">
+<div class="w-full h-12 rounded-lg bg-surface-container-lowest flex items-center justify-center overflow-hidden">
+<span class="px-2 py-0.5 rounded-full bg-surface-container-highest text-secondary text-label-sm font-bold shadow-sm">CREMOSO</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface leading-tight font-semibold">Pastilla TikTok</span>
+<span class="font-label-sm text-[9px] text-on-surface-variant">Cápsula pop-up</span>
+</div>
+<!-- Effect 3: Neón Kinetic -->
+<div class="effect-card cursor-pointer p-space-xs rounded-xl bg-surface-container hover:bg-surface-container-high transition-all flex flex-col items-center text-center gap-1.5" id="fx-neon" onclick="selectEffect('neon')">
+<div class="w-full h-12 rounded-lg bg-surface-container-lowest flex items-center justify-center overflow-hidden">
+<span class="font-headline-sm text-headline-sm font-black text-secondary tracking-wide drop-shadow-[0_0_10px_rgba(212,187,255,0.9)]">FUEGO</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface leading-tight font-semibold">Neón Kinetic</span>
+<span class="font-label-sm text-[9px] text-on-surface-variant">Resplandor violeta</span>
+</div>
+<!-- Effect 4: Golpe de Beat -->
+<div class="effect-card cursor-pointer p-space-xs rounded-xl bg-surface-container hover:bg-surface-container-high transition-all flex flex-col items-center text-center gap-1.5" id="fx-beat" onclick="selectEffect('beat')">
+<div class="w-full h-12 rounded-lg bg-surface-container-lowest flex items-center justify-center overflow-hidden">
+<span class="font-headline-sm text-headline-sm font-black text-tertiary scale-110 tracking-tighter">¡BOOM!</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface leading-tight font-semibold">Golpe de Beat</span>
+<span class="font-label-sm text-[9px] text-on-surface-variant">Impacto de escala</span>
+</div>
+<!-- Effect 5: Glitch Urbano -->
+<div class="effect-card cursor-pointer p-space-xs rounded-xl bg-surface-container hover:bg-surface-container-high transition-all flex flex-col items-center text-center gap-1.5" id="fx-glitch" onclick="selectEffect('glitch')">
+<div class="w-full h-12 rounded-lg bg-surface-container-lowest flex items-center justify-center overflow-hidden relative">
+<span class="font-title-md text-title-md font-black text-on-surface tracking-widest translate-x-0.5 text-primary">RAW</span>
+<span class="absolute font-title-md text-title-md font-black text-secondary tracking-widest -translate-x-0.5 opacity-80 mix-blend-screen">RAW</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface leading-tight font-semibold">Glitch Urbano</span>
+<span class="font-label-sm text-[9px] text-on-surface-variant">RGB Cyberpunk</span>
+</div>
+</div>
+</div>
+<!-- Section 2: Quick Staging & Typography Tweaks -->
+<div class="grid grid-cols-3 gap-space-md p-space-md bg-surface-container rounded-xl">
+<!-- Accent Color Palette -->
+<div class="flex flex-col gap-1.5">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Color de Acento Clave</span>
+<div class="flex items-center gap-2">
+<button class="color-dot w-6 h-6 rounded-full bg-[#ff5e62] shadow-sm transform scale-125 transition-transform" onclick="setWordColor('#ff5e62', this)" title="Coral"></button>
+<button class="color-dot w-6 h-6 rounded-full bg-[#ffb4a3] shadow-sm transition-transform" onclick="setWordColor('#ffb4a3', this)" title="Melocotón"></button>
+<button class="color-dot w-6 h-6 rounded-full bg-[#d4bbff] shadow-sm transition-transform" onclick="setWordColor('#d4bbff', this)" title="Violeta"></button>
+<button class="color-dot w-6 h-6 rounded-full bg-white shadow-sm transition-transform" onclick="setWordColor('#ffffff', this)" title="Blanco Puro"></button>
+<button class="color-dot w-6 h-6 rounded-full bg-[#ffda79] shadow-sm transition-transform" onclick="setWordColor('#ffda79', this)" title="Amarillo Viral"></button>
+</div>
+</div>
+<!-- Typography Engine -->
+<div class="flex flex-col gap-1.5">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Fuente de Impacto</span>
+<select class="h-8 px-2 rounded-lg bg-surface-container-high text-on-surface font-label-sm text-label-sm focus:outline-none" id="fontSelect" onchange="updateSubFont(this.value)">
+<option value="font-headline-lg font-black uppercase">Plus Jakarta Ultra Black</option>
+<option value="font-display-lg font-bold">Display Heavy Bold</option>
+<option value="font-body-lg font-extrabold uppercase">Inter Impact Heavy</option>
+</select>
+</div>
+<!-- Staging Position -->
+<div class="flex flex-col gap-1.5">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Posición en Canvas</span>
+<div class="flex bg-surface-container-high p-0.5 rounded-lg">
+<button class="flex-1 py-1 rounded text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm transition-all" id="pos-center" onclick="setPosition('center')">Centro</button>
+<button class="flex-1 py-1 rounded bg-surface-bright text-on-surface font-label-sm text-label-sm shadow-sm transition-all" id="pos-lower" onclick="setPosition('lower')">Tercio Inferior</button>
+</div>
+</div>
+</div>
+<!-- Section 3: Dual Verse Timeline & Whisper Correction Panel -->
+<div class="flex flex-col gap-space-sm flex-1 min-h-[220px]">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">Timeline de Versos Whisper</span>
+<span class="px-space-xs py-0.5 rounded bg-surface-container-highest font-mono text-label-sm text-primary">0.02s sync rate</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1 cursor-pointer hover:text-secondary">
+<span class="material-symbols-outlined text-sm">cached</span> Re-transcribir con audio limpio
+              </span>
+</div>
+<!-- Verse Rows with Live Translation Editor -->
+<div class="flex flex-col gap-space-xs overflow-y-auto max-h-52 pr-1">
+<!-- Verse Item 1 (Active playing) -->
+<div class="flex flex-col gap-1 p-space-sm rounded-xl bg-surface-container-high shadow-md">
+<div class="flex items-center justify-between text-on-surface-variant font-mono font-label-sm text-label-sm">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+<span class="text-primary font-semibold">00:03.20 ➔ 00:06.50</span>
+<span class="px-1.5 rounded bg-surface-container-highest text-secondary text-[10px]">HOOK #1</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-on-surface-variant hover:text-primary cursor-pointer">volume_up</span>
+<span class="material-symbols-outlined text-sm text-on-surface-variant hover:text-error cursor-pointer">delete</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-space-sm mt-1">
+<!-- Spanish original -->
+<div class="flex flex-col gap-0.5">
+<span class="font-label-sm text-[10px] text-on-surface-variant uppercase tracking-wider">Español (Original Whisper)</span>
+<input class="w-full px-2 py-1 rounded bg-surface-container-lowest text-on-surface font-body-sm text-body-sm focus:outline-none focus:ring-1 focus:ring-primary" id="verse-es-1" type="text" value="El auténtico secreto de la pizza napolitana"/>
+</div>
+<!-- English translation -->
+<div class="flex flex-col gap-0.5" id="col-trans-1">
+<span class="font-label-sm text-[10px] text-secondary uppercase tracking-wider">Inglés (Traducción simultánea)</span>
+<input class="w-full px-2 py-1 rounded bg-surface-container-lowest text-secondary font-body-sm text-body-sm focus:outline-none focus:ring-1 focus:ring-secondary" id="verse-en-1" type="text" value="The authentic secret behind Neapolitan pizza"/>
+</div>
+</div>
+</div>
+<!-- Verse Item 2 -->
+<div class="flex flex-col gap-1 p-space-sm rounded-xl bg-surface-container opacity-85 hover:opacity-100 transition-opacity">
+<div class="flex items-center justify-between text-on-surface-variant font-mono font-label-sm text-label-sm">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-on-surface-variant"></span>
+<span>00:06.80 ➔ 00:10.15</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-on-surface-variant hover:text-primary cursor-pointer">volume_up</span>
+<span class="material-symbols-outlined text-sm text-on-surface-variant hover:text-error cursor-pointer">delete</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-space-sm mt-1">
+<div class="flex flex-col gap-0.5">
+<span class="font-label-sm text-[10px] text-on-surface-variant uppercase tracking-wider">Español</span>
+<input class="w-full px-2 py-1 rounded bg-surface-container-lowest text-on-surface font-body-sm text-body-sm focus:outline-none" type="text" value="está en la fermentación de 48 horas exactas"/>
+</div>
+<div class="flex flex-col gap-0.5" id="col-trans-2">
+<span class="font-label-sm text-[10px] text-secondary uppercase tracking-wider">Inglés</span>
+<input class="w-full px-2 py-1 rounded bg-surface-container-lowest text-secondary font-body-sm text-body-sm focus:outline-none" type="text" value="lies in exact 48-hour dough fermentation"/>
+</div>
+</div>
+</div>
+<!-- Verse Item 3 -->
+<div class="flex flex-col gap-1 p-space-sm rounded-xl bg-surface-container opacity-60 hover:opacity-100 transition-opacity">
+<div class="flex items-center justify-between text-on-surface-variant font-mono font-label-sm text-label-sm">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-on-surface-variant"></span>
+<span>00:10.40 ➔ 00:14.90</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm text-on-surface-variant hover:text-primary cursor-pointer">volume_up</span>
+<span class="material-symbols-outlined text-sm text-on-surface-variant hover:text-error cursor-pointer">delete</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-space-sm mt-1">
+<div class="flex flex-col gap-0.5">
+<span class="font-label-sm text-[10px] text-on-surface-variant uppercase tracking-wider">Español</span>
+<input class="w-full px-2 py-1 rounded bg-surface-container-lowest text-on-surface font-body-sm text-body-sm focus:outline-none" type="text" value="y la cocción a leña viva a 450 grados."/>
+</div>
+<div class="flex flex-col gap-0.5" id="col-trans-3">
+<span class="font-label-sm text-[10px] text-secondary uppercase tracking-wider">Inglés</span>
+<input class="w-full px-2 py-1 rounded bg-surface-container-lowest text-secondary font-body-sm text-body-sm focus:outline-none" type="text" value="and live wood-fire baking at 450 degrees."/>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Side: Vertical Live Monitor (5 cols) -->
+<div class="col-span-5 p-space-lg bg-surface-container-lowest flex flex-col items-center justify-between relative">
+<!-- Monitor Meta Header -->
+<div class="w-full flex items-center justify-between pb-space-xs text-on-surface-variant font-label-sm text-label-sm">
+<span class="flex items-center gap-1.5 text-on-surface font-semibold">
+<span class="material-symbols-outlined text-base text-primary">videocam</span>
+              Monitor 9:16 Realtime
+            </span>
+<span class="px-2 py-0.5 rounded bg-surface-container text-secondary font-mono">1080x1920 (60fps)</span>
+</div>
+<!-- 9:16 Smartphone Mockup Preview Frame -->
+<div class="relative w-full max-w-[270px] aspect-[9/16] rounded-2xl overflow-hidden bg-black shadow-2xl flex flex-col justify-between p-space-md select-none group">
+<!-- Video Media Background -->
+<img class="absolute inset-0 w-full h-full object-cover opacity-85" data-alt="Vertical crisp video shot of traditional wood fired pizza oven with glowing hot embers and chef sliding a margherita pizza inside with bubbling mozzarella cheese." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC84Uim77qabyYxhBmu75wjlnfUlBC51xKhc6RAIzcDvfh6npXwj2u6PMU3O2iMVPfHX4rZpMDIyMExMkyv1OWIoKY9bd1E3bBWloIC_vg4zw0h8dY5Yu9g3CjlKlW-KXD6RRZ9Sw7itkspddABe6BQWaJ6sl_IQyCYztqQfeCfLqrMeWw7jZ9A8QAXXs1GYOVDPH3KQrqTpwliEMT0bGKD7B_kFpEodU5WG8BtQ4g"/>
+<div class="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/80 pointer-events-none"></div>
+<!-- Social Overlays Simulation (Top) -->
+<div class="relative z-10 flex items-center justify-between text-white/80">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">music_note</span>
+<span class="font-label-sm text-[10px] truncate max-w-[130px]">Sonido original • Trattoria Bella</span>
+</div>
+<span class="font-label-sm text-[10px] px-1 rounded bg-black/60 font-mono">LIVE PREVIEW</span>
+</div>
+<!-- DYNAMIC SUBTITLE ENGINE (Rendered in preview canvas) -->
+<div class="relative z-20 flex flex-col items-center justify-center text-center px-2 py-1 my-auto transition-all duration-300" id="subtitleStage">
+<!-- Primary Spanish Active Line with Karaoke Sync -->
+<div class="flex flex-wrap items-center justify-center gap-1.5 font-headline-lg font-black uppercase tracking-tight text-white drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)]" id="previewEsContainer">
+<span class="transition-all duration-150 text-white/90">EL</span>
+<span class="transition-all duration-150 text-white/90">AUTÉNTICO</span>
+<!-- Word Active Highlight -->
+<span class="px-2 py-0.5 rounded-lg bg-primary-container text-white shadow-lg transform scale-110 drop-shadow-[0_0_12px_rgba(255,94,98,0.8)]" id="activeWord">
+                  SECRETO
+                </span>
+<span class="transition-all duration-150 text-white/90">DE</span>
+<span class="transition-all duration-150 text-white/90">LA</span>
+<span class="transition-all duration-150 text-white/90">PIZZA</span>
+</div>
+<!-- Secondary English Dynamic Subtitle Line -->
+<div class="mt-2 px-2.5 py-0.5 rounded-full bg-black/75 backdrop-blur-md text-secondary font-label-md text-label-md font-semibold tracking-wide drop-shadow-md" id="previewEnContainer">
+                The authentic secret behind Neapolitan pizza
+              </div>
+</div>
+<!-- Bottom Video Scrub & Timecode -->
+<div class="relative z-10 flex flex-col gap-1">
+<div class="flex items-center justify-between text-[11px] font-mono text-white/90">
+<span>00:04.80</span>
+<span>00:28.40</span>
+</div>
+<div class="w-full h-1 bg-white/30 rounded-full overflow-hidden">
+<div class="h-full bg-primary-container rounded-full" style="width: 22%"></div>
+</div>
+</div>
+<!-- Platform Safe Zone Overlays Guide -->
+<div class="absolute right-2 bottom-16 flex flex-col gap-3 text-white/70 pointer-events-none">
+<div class="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center"><span class="material-symbols-outlined text-xs">favorite</span></div>
+<div class="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center"><span class="material-symbols-outlined text-xs">chat_bubble</span></div>
+<div class="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center"><span class="material-symbols-outlined text-xs">share</span></div>
+</div>
+</div>
+<!-- Realtime Audio Waveform Visualizer for Word Sync -->
+<div class="w-full max-w-[270px] mt-space-sm p-space-xs rounded-xl bg-surface-container flex flex-col gap-1">
+<div class="flex items-center justify-between font-label-sm text-[10px] text-on-surface-variant">
+<span>Whisper Picos Vocales</span>
+<span class="text-primary font-mono font-bold">148 WPM (Ritmo óptimo)</span>
+</div>
+<!-- Interactive Mini Waveform Graphic -->
+<div class="h-6 w-full flex items-center justify-between gap-0.5 px-1 bg-surface-container-lowest rounded-lg">
+<div class="w-1 bg-secondary h-2 rounded-full"></div>
+<div class="w-1 bg-secondary h-3 rounded-full"></div>
+<div class="w-1 bg-secondary h-4 rounded-full"></div>
+<div class="w-1 bg-primary-container h-5 rounded-full animate-pulse"></div>
+<div class="w-1 bg-primary-container h-6 rounded-full shadow-sm"></div>
+<div class="w-1 bg-primary-container h-5 rounded-full animate-pulse"></div>
+<div class="w-1 bg-secondary h-3 rounded-full"></div>
+<div class="w-1 bg-secondary h-2 rounded-full"></div>
+<div class="w-1 bg-secondary h-4 rounded-full"></div>
+<div class="w-1 bg-secondary h-5 rounded-full"></div>
+<div class="w-1 bg-secondary h-3 rounded-full"></div>
+<div class="w-1 bg-secondary h-1 rounded-full"></div>
+<div class="w-1 bg-secondary h-3 rounded-full"></div>
+<div class="w-1 bg-primary-container h-4 rounded-full"></div>
+<div class="w-1 bg-primary-container h-5 rounded-full"></div>
+<div class="w-1 bg-secondary h-2 rounded-full"></div>
+<div class="w-1 bg-secondary h-1 rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal Footer Action Bar -->
+<div class="flex items-center justify-between px-space-xl py-space-md bg-surface-container">
+<div class="flex items-center gap-space-md text-on-surface-variant font-label-sm text-label-sm">
+<span class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm text-secondary">memory</span>
+            GPU Acelerada (Apple Silicon / CUDA)
+          </span>
+<span class="w-1 h-1 rounded-full bg-on-surface-variant"></span>
+<span>Sin pérdida de calidad (4K HDR Master)</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<!-- Cancel Button -->
+<button class="px-space-lg py-2 rounded-xl bg-surface-container-highest text-on-surface font-label-lg text-label-lg hover:bg-surface-bright transition-colors">
+            Cancelar
+          </button>
+<!-- Play Realtime Preview Trigger -->
+<button class="flex items-center gap-1.5 px-space-md py-2 rounded-xl bg-surface-container-highest text-secondary hover:text-on-surface hover:bg-surface-bright font-label-lg text-label-lg transition-colors" id="previewPlayBtn" onclick="togglePreviewPlay()">
+<span class="material-symbols-outlined text-base">play_arrow</span>
+<span>Vista Previa (Loop)</span>
+</button>
+<!-- Main Render Action Studio Trigger -->
+<button class="flex items-center gap-2 px-space-xl py-2 rounded-xl bg-primary-container text-white font-label-lg text-label-lg font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all" onclick="triggerRender(this)">
+<span class="material-symbols-outlined text-lg">bolt</span>
+<span>Renderizar subtítulos (30s)</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+  let currentLanguageMode = 'dual';
+  let activeEffect = 'karaoke';
+  let activeColor = '#ff5e62';
+
+  function setLangMode(mode) {
+    currentLanguageMode = mode;
+    const btnDual = document.getElementById('btn-dual');
+    const btnEs = document.getElementById('btn-es');
+    const btnEn = document.getElementById('btn-en');
+    
+    // Reset styles
+    [btnDual, btnEs, btnEn].forEach(b => {
+      b.className = 'px-space-sm py-1 rounded font-label-sm text-label-sm text-on-surface-variant hover:text-on-surface transition-all';
+    });
+
+    const previewEs = document.getElementById('previewEsContainer');
+    const previewEn = document.getElementById('previewEnContainer');
+    const colTrans1 = document.getElementById('col-trans-1');
+    const colTrans2 = document.getElementById('col-trans-2');
+    const colTrans3 = document.getElementById('col-trans-3');
+
+    if (mode === 'dual') {
+      btnDual.className = 'px-space-sm py-1 rounded font-label-sm text-label-sm bg-primary-container text-on-primary shadow-sm transition-all flex items-center gap-1';
+      previewEs.style.display = 'flex';
+      previewEn.style.display = 'block';
+      [colTrans1, colTrans2, colTrans3].forEach(c => c.style.opacity = '1');
+    } else if (mode === 'es') {
+      btnEs.className = 'px-space-sm py-1 rounded font-label-sm text-label-sm bg-primary-container text-on-primary shadow-sm transition-all';
+      previewEs.style.display = 'flex';
+      previewEn.style.display = 'none';
+      [colTrans1, colTrans2, colTrans3].forEach(c => c.style.opacity = '0.3');
+    } else if (mode === 'en') {
+      btnEn.className = 'px-space-sm py-1 rounded font-label-sm text-label-sm bg-primary-container text-on-primary shadow-sm transition-all';
+      previewEs.style.display = 'none';
+      previewEn.style.display = 'block';
+      [colTrans1, colTrans2, colTrans3].forEach(c => c.style.opacity = '1');
+    }
+  }
+
+  function selectEffect(fx) {
+    activeEffect = fx;
+    document.querySelectorAll('.effect-card').forEach(card => {
+      card.classList.remove('bg-surface-container-high', 'shadow-md');
+      card.classList.add('bg-surface-container');
+    });
+
+    const activeEl = document.getElementById('fx-' + fx);
+    if (activeEl) {
+      activeEl.classList.remove('bg-surface-container');
+      activeEl.classList.add('bg-surface-container-high', 'shadow-md');
+    }
+
+    const activeWord = document.getElementById('activeWord');
+    if (!activeWord) return;
+
+    // Reset base classes
+    activeWord.className = 'px-2 py-0.5 rounded-lg shadow-lg transition-all duration-200';
+    activeWord.style.backgroundColor = activeColor;
+    activeWord.style.color = '#ffffff';
+    activeWord.style.boxShadow = '';
+
+    if (fx === 'karaoke') {
+      activeWord.classList.add('scale-110');
+      activeWord.style.boxShadow = `0 0 16px ${activeColor}`;
+    } else if (fx === 'pill') {
+      activeWord.className = 'px-3 py-1 rounded-full text-white shadow-xl scale-105';
+      activeWord.style.backgroundColor = '#111317';
+      activeWord.style.border = `2px solid ${activeColor}`;
+      activeWord.style.color = activeColor;
+    } else if (fx === 'neon') {
+      activeWord.className = 'px-1 scale-110 tracking-widest';
+      activeWord.style.backgroundColor = 'transparent';
+      activeWord.style.color = activeColor;
+      activeWord.style.textShadow = `0 0 14px ${activeColor}, 0 0 28px ${activeColor}`;
+    } else if (fx === 'beat') {
+      activeWord.className = 'px-2 scale-125 font-black animate-bounce';
+      activeWord.style.backgroundColor = activeColor;
+      activeWord.style.color = '#000000';
+    } else if (fx === 'glitch') {
+      activeWord.className = 'px-2 skew-x-6 tracking-wide';
+      activeWord.style.backgroundColor = activeColor;
+      activeWord.style.textShadow = '-2px 0 #d4bbff, 2px 0 #6c04de';
+    }
+  }
+
+  function setWordColor(hex, btn) {
+    activeColor = hex;
+    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('scale-125'));
+    if (btn) btn.classList.add('scale-125');
+    selectEffect(activeEffect);
+  }
+
+  function setPosition(pos) {
+    const stage = document.getElementById('subtitleStage');
+    const posCenter = document.getElementById('pos-center');
+    const posLower = document.getElementById('pos-lower');
+
+    if (pos === 'center') {
+      stage.style.marginTop = 'auto';
+      stage.style.marginBottom = 'auto';
+      posCenter.className = 'flex-1 py-1 rounded bg-surface-bright text-on-surface font-label-sm text-label-sm shadow-sm transition-all';
+      posLower.className = 'flex-1 py-1 rounded text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm transition-all';
+    } else {
+      stage.style.marginTop = 'auto';
+      stage.style.marginBottom = '32px';
+      posLower.className = 'flex-1 py-1 rounded bg-surface-bright text-on-surface font-label-sm text-label-sm shadow-sm transition-all';
+      posCenter.className = 'flex-1 py-1 rounded text-on-surface-variant hover:text-on-surface font-label-sm text-label-sm transition-all';
+    }
+  }
+
+  function updateSubFont(fontClasses) {
+    const container = document.getElementById('previewEsContainer');
+    if (container) {
+      container.className = `flex flex-wrap items-center justify-center gap-1.5 drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] ${fontClasses}`;
+    }
+  }
+
+  let isPlaying = false;
+  let wordTimer = null;
+  function togglePreviewPlay() {
+    isPlaying = !isPlaying;
+    const playBtn = document.getElementById('previewPlayBtn');
+    if (isPlaying) {
+      playBtn.innerHTML = '<span class="material-symbols-outlined text-base">pause</span><span>Pausar</span>';
+      let words = ['EL', 'AUTÉNTICO', 'SECRETO', 'DE', 'LA', 'PIZZA'];
+      let idx = 0;
+      wordTimer = setInterval(() => {
+        const preview = document.getElementById('previewEsContainer');
+        preview.innerHTML = words.map((w, i) => {
+          if (i === idx) {
+            return `<span id="activeWord" class="px-2 py-0.5 rounded-lg shadow-lg scale-110" style="background-color:${activeColor}; color:#fff;">${w}</span>`;
+          }
+          return `<span class="transition-all duration-150 text-white/90">${w}</span>`;
+        }).join(' ');
+        idx = (idx + 1) % words.length;
+      }, 400);
+    } else {
+      playBtn.innerHTML = '<span class="material-symbols-outlined text-base">play_arrow</span><span>Vista Previa (Loop)</span>';
+      clearInterval(wordTimer);
+    }
+  }
+
+  function triggerRender(btn) {
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="material-symbols-outlined text-lg animate-spin">refresh</span><span>Renderizando con ffmpeg...</span>';
+    btn.classList.add('opacity-80', 'pointer-events-none');
+    setTimeout(() => {
+      btn.innerHTML = '<span class="material-symbols-outlined text-lg text-white">check_circle</span><span>¡Completado!</span>';
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.classList.remove('opacity-80', 'pointer-events-none');
+      }, 1800);
+    }, 2200);
+  }
+
+  // Init position to lower third by default
+  setPosition('lower');
+  selectEffect('karaoke');
+</script></main></div></body></html>
