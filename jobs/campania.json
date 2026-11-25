@@ -1,0 +1,16 @@
+{
+  "template": "title-card",
+  "quality": "looks",
+  "rows": [
+    {
+      "name": "cliente",
+      "music": "corrales-cliente",
+      "musicStart": 0
+    },
+    {
+      "name": "baile-inolvidable",
+      "music": "bad-bunny-baile-inolvidable",
+      "musicStart": 3.48
+    }
+  ]
+}

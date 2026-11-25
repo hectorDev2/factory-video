@@ -1,0 +1,19 @@
+{
+  "template": "trailer-delivery",
+  "quality": "looks",
+  "rows": [
+    {
+      "name": "corrales-musica-cliente",
+      "music": "corrales-cliente",
+      "musicStart": 0,
+      "media": "corrales",
+      "brand": "Corrales"
+    },
+    {
+      "name": "corrales-bad-bunny",
+      "music": "bad-bunny-te-deseo-lo-mejor",
+      "musicStart": 20,
+      "media": "corrales"
+    }
+  ]
+}

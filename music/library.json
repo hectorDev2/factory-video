@@ -1,0 +1,195 @@
+{
+  "demo-beat": {
+    "hook": 2,
+    "artist": "Pista de prueba generada",
+    "license": "propia"
+  },
+  "daft-punk-one-more-time": {
+    "artist": "Daft Punk",
+    "title": "One More Time",
+    "hook": 60,
+    "source": "spotdl",
+    "license": "ninguna — solo experimental",
+    "experimental": true
+  },
+  "bad-bunny-baile-inolvidable": {
+    "artist": "Bad Bunny",
+    "title": "BAILE INoLVIDABLE",
+    "hook": 0,
+    "source": "spotdl",
+    "license": "ninguna — solo experimental",
+    "experimental": true
+  },
+  "bad-bunny-te-deseo-lo-mejor": {
+    "artist": "Bad Bunny",
+    "title": "TE DESEO LO MEJOR",
+    "hook": 0,
+    "source": "spotdl (yt-dlp)",
+    "youtube": "-D0BEeTFbSg",
+    "license": "ninguna — solo experimental",
+    "experimental": true
+  },
+  "bad-bunny-nadie-sabe": {
+    "artist": "Bad Bunny",
+    "title": "NADIE SABE",
+    "hook": 0,
+    "source": "spotdl (yt-dlp)",
+    "youtube": "UeOXABw7gOk",
+    "license": "ninguna — solo experimental",
+    "experimental": true
+  },
+  "corrales-cliente": {
+    "artist": "corrales",
+    "title": "cliente",
+    "hook": 0,
+    "source": "cliente",
+    "license": "del cliente"
+  },
+  "clim-admin": {
+    "artist": "clim",
+    "title": "admin",
+    "hook": 0,
+    "source": "cliente",
+    "license": "del cliente"
+  },
+  "thirty-seconds-to-mars-the-kill": {
+    "artist": "Thirty Seconds To Mars",
+    "title": "The Kill",
+    "hook": 0,
+    "source": "spotdl (yt-dlp)",
+    "youtube": "nIxxdRaWoBs",
+    "license": "ninguna — solo experimental",
+    "experimental": true
+  },
+  "generada-antojo-de-parrilla": {
+    "artist": "Generada con código",
+    "title": "Antojo de Parrilla",
+    "hook": 14.69,
+    "source": "generada",
+    "license": "propia (generada con código, sin derechos de terceros)",
+    "generated": {
+      "style": "reggaeton",
+      "bpm": 98,
+      "key": "A",
+      "scale": "minor",
+      "seed": 2718,
+      "bars": 18,
+      "sections": [
+        "intro",
+        "intro",
+        "intro",
+        "intro",
+        "build",
+        "build",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "break",
+        "build",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "outro",
+        "outro"
+      ],
+      "why": "Corrales vende pollo a la brasa, parrilla y anticuchos: comida peruana de antojo, familiar y sabrosa, y un dembow cálido y bailable transmite hambre, fiesta y ganas de compartir. El ritmo a ~98 BPM permite cortes cada 1–2 s sobre el beat, con graves potentes y melodía pegajosa que funciona en Reels.",
+      "tweaks": {
+        "style": "reggaeton",
+        "bpm": 98,
+        "key": "A",
+        "scale": "minor",
+        "seed": 2718,
+        "title": "Antojo de Parrilla",
+        "why": "Corrales vende pollo a la brasa, parrilla y anticuchos: comida peruana de antojo, familiar y sabrosa, y un dembow cálido y bailable transmite hambre, fiesta y ganas de compartir. El ritmo a ~98 BPM permite cortes cada 1–2 s sobre el beat, con graves potentes y melodía pegajosa que funciona en Reels.",
+        "prog": [
+          0,
+          5,
+          2,
+          6
+        ],
+        "energy": 0.85,
+        "brightness": 1,
+        "sidechain": 0.3,
+        "leadType": "pluck",
+        "bassType": "808",
+        "chordType": "epiano",
+        "leadDensity": 0.5,
+        "reverb": 0.15,
+        "delay": 0.15,
+        "swing": 0.1
+      },
+      "for": "Corrales"
+    }
+  },
+  "generada-ruta-verificada": {
+    "artist": "Generada con código",
+    "title": "Ruta Verificada",
+    "hook": 12.2,
+    "source": "generada",
+    "license": "propia (generada con código, sin derechos de terceros)",
+    "generated": {
+      "style": "house",
+      "bpm": 118,
+      "key": "A",
+      "scale": "minor",
+      "seed": 4821,
+      "bars": 24,
+      "sections": [
+        "intro",
+        "intro",
+        "intro",
+        "intro",
+        "build",
+        "build",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "break",
+        "build",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "drop",
+        "outro",
+        "outro"
+      ],
+      "why": "Un house suave y optimista a 118 BPM transmite movimiento, logística fluida y confianza tecnológica, justo lo que busca un importador o exportador peruano al conectar con operadores verificados. Los cortes cada 1–2 s sobre el beat encajan con los 9 shots de la plataforma y dan un Reel moderno y profesional que genera ganas de probarla.",
+      "tweaks": {
+        "style": "house",
+        "bpm": 118,
+        "key": "A",
+        "scale": "minor",
+        "seed": 4821,
+        "title": "Ruta Verificada",
+        "why": "Un house suave y optimista a 118 BPM transmite movimiento, logística fluida y confianza tecnológica, justo lo que busca un importador o exportador peruano al conectar con operadores verificados. Los cortes cada 1–2 s sobre el beat encajan con los 9 shots de la plataforma y dan un Reel moderno y profesional que genera ganas de probarla.",
+        "prog": [
+          0,
+          5,
+          2,
+          6
+        ],
+        "chordType": "pluck",
+        "leadType": "bell",
+        "bassType": "sine",
+        "energy": 0.7,
+        "brightness": 1,
+        "sidechain": 0.5,
+        "leadDensity": 0.45,
+        "arp": true,
+        "reverb": 0.2,
+        "delay": 0.2,
+        "swing": 0.1
+      },
+      "for": "prueba-web2"
+    }
+  }
+}

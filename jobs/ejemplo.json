@@ -1,0 +1,36 @@
+{
+  "template": "title-card",
+  "quality": "draft",
+  "defaults": {
+    "cta": "factory.video",
+    "music": "demo-beat"
+  },
+  "rows": [
+    {
+      "name": "lanzamiento-naranja",
+      "eyebrow": "Nuevo lanzamiento",
+      "headline": "Videos en serie, sin editar a mano",
+      "subline": "Una plantilla, cientos de variantes."
+    },
+    {
+      "name": "oferta-azul",
+      "eyebrow": "Solo esta semana",
+      "headline": "30% de descuento en todo",
+      "subline": "Válido hasta el domingo a medianoche.",
+      "cta": "tienda.com/oferta",
+      "accent": "#3b82f6",
+      "ground": "#0b1220",
+      "musicStart": 6
+    },
+    {
+      "name": "evento-claro",
+      "eyebrow": "Webinar gratuito",
+      "headline": "Automatiza tu contenido",
+      "subline": "Jueves 4 de diciembre · 18:00 h",
+      "cta": "Reserva tu lugar",
+      "accent": "#0f766e",
+      "ground": "#f4f1ea",
+      "ink": "#111111"
+    }
+  ]
+}

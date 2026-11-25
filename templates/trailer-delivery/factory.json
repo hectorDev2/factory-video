@@ -1,0 +1,39 @@
+{
+  "slots": [
+    {
+      "id": "shots",
+      "label": "Capturas de la web",
+      "hint": "Pantallas de móvil en vertical (860 px de ancho)",
+      "count": 3,
+      "var": "shot_{n}",
+      "positions": [
+        "Carta / menú (escena «Toda la carta»)",
+        "Producto (escena «A tu manera»)",
+        "Bandeja o carrito (escena «Arma tu bandeja»)"
+      ],
+      "aliases": [
+        "capturas",
+        "screenshots",
+        "pantallas",
+        "web"
+      ]
+    },
+    {
+      "id": "items",
+      "label": "Items (productos, platos, servicios…)",
+      "hint": "Imágenes cuadradas, ~900×900. El nombre del archivo se usa como nombre del item.",
+      "count": 8,
+      "var": "item_{n}",
+      "name": "item_name_{n}",
+      "aliases": [
+        "food",
+        "productos",
+        "products",
+        "platos",
+        "servicios",
+        "catalogo",
+        "catálogo"
+      ]
+    }
+  ]
+}
