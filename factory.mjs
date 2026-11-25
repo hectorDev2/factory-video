@@ -216,7 +216,7 @@ function ui() {
       let u; try { u = new URL(String(url).trim()); } catch { return json(res, { error: "pega un enlace completo (https://…)" }, 400); }
       if (!/^https?:$/.test(u.protocol)) return json(res, { error: "solo enlaces http(s)" }, 400);
       const id = `dl-${Date.now().toString(36)}`;
-      const job = { status: "descargando", pct: 1, phase: "Conectando", file: null, error: null };
+      const job = { status: "descargando", pct: 1, phase: "Conectando con el sitio", file: null, error: null, startedAt: Date.now(), updatedAt: Date.now() };
       INGEST.set(id, job);
       // La vista previa va a runs/previews (ligera, 480p, se borra sola); la descarga final, a la carpeta del cliente.
       const dir = preview ? path.join(RUNS, "previews") : path.join(MEDIA, project, safeName(folder || "clips"));
@@ -228,25 +228,36 @@ function ui() {
       const fmtArgs = preview
         ? ["-f", "b[height<=480][ext=mp4]/bv*[height<=480][vcodec^=avc]+ba[acodec^=mp4a]/b[height<=480]/w", "--max-filesize", "400M"]
         : ["-S", "res:1080,vcodec:h264,acodec:aac", "--max-filesize", "700M"];
-      const args = ["--no-warnings", "--no-playlist", "--newline", "--js-runtimes", `node:${process.execPath}`, ...fmtArgs,
+      const args = ["--no-warnings", "--no-quiet", "--no-playlist", "--newline", "--js-runtimes", `node:${process.execPath}`, ...fmtArgs,
         ...(section && !preview ? ["--download-sections", `*${section[0]}-${section[1]}`, "--force-keyframes-at-cuts"] : []),
         "--progress-template", "download:PCT %(progress._percent_str)s", "--print", "after_move:INFO %(title)s\t%(uploader)s\t%(webpage_url)s\t%(duration)s",
         "--merge-output-format", "mp4", "-o", path.join(tmp, "%(title).80B.%(ext)s"), u.href];
       let info = "", err = "";
-      const child = spawn(bin, args);
-      const timer = setTimeout(() => child.kill(), 900000);
-      const line = (d) => String(d).split("\n").forEach((l) => {
-        const m = l.match(/^PCT\s+([\d.]+)%/);
-        if (m) { job.pct = Math.max(1, Math.min(95, Number(m[1]) * 0.95)); job.phase = "Descargando"; }
+      const child = spawn(bin, args, { detached: true, env: { ...process.env, PYTHONUNBUFFERED: "1" } });
+      INGEST_CHILD.set(id, child);
+      const killAll = () => { try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill(); } };
+      child.killAll = killAll;
+      const timer = setTimeout(killAll, 900000);
+      const secLen = section ? section[1] - section[0] : 0;
+      const line = (d) => String(d).split(/[\r\n]+/).forEach((l) => {
+        if (!l.trim()) return;
+        job.updatedAt = Date.now();
+        const m = l.match(/^PCT\s+([\d.]+)%/), ft = l.match(/time=(\d+):(\d+):([\d.]+)/);
+        if (m) { job.pct = Math.max(job.pct, Math.min(95, Number(m[1]) * 0.95)); job.phase = "Descargando"; }
+        else if (ft && secLen) { const t = Number(ft[1]) * 3600 + Number(ft[2]) * 60 + Number(ft[3]); job.pct = Math.max(job.pct, Math.min(95, (t / secLen) * 95)); job.phase = "Cortando el tramo"; }
         else if (l.startsWith("INFO ")) info = l.slice(5);
-        else if (/Merging|ExtractAudio|Fixup|ffmpeg/i.test(l)) job.phase = "Preparando el archivo";
+        else if (/Merger|Fixup|ExtractAudio/.test(l)) job.phase = "Preparando el archivo";
+        else if (/Downloading \d+ time ranges|Destination:/.test(l)) job.phase = section ? "Cortando el tramo" : "Descargando";
+        else if (/Downloading \d+ format/.test(l)) { job.phase = "Eligiendo la calidad"; job.pct = Math.max(job.pct, 3); }
+        else if (/Extracting URL|Downloading webpage|player API|m3u8|JS challenges|Downloading .*JSON/.test(l)) { job.phase = "Leyendo el enlace"; job.pct = Math.max(job.pct, 2); }
         else if (l.startsWith("ERROR")) err = l;
       });
       child.stdout.on("data", line);
       child.stderr.on("data", (d) => { line(d); });
       child.on("error", (e) => { job.status = "falló"; job.error = e.code === "ENOENT" ? "No encuentro yt-dlp. Instálalo con: brew install yt-dlp" : e.message; });
       child.on("close", async () => {
-        clearTimeout(timer);
+        clearTimeout(timer); INGEST_CHILD.delete(id);
+        if (job.status === "falló") { setTimeout(() => fs.rmSync(tmp, { recursive: true, force: true }), 1500); return; }
         try {
           const got = fs.readdirSync(tmp).find((f) => /\.mp4$/i.test(f));
           if (!got) throw new Error(err.replace(/^ERROR:\s*(\[[^\]]+\]\s*)?/, "") || "no se pudo descargar ese enlace (¿es privado o necesita iniciar sesión?)");
@@ -274,6 +285,13 @@ function ui() {
       const file = path.join(RUNS, "previews", `${safeName(q.get("id"))}.mp4`);
       if (!fs.existsSync(file)) notFound();
       streamFile(req, res, file, "video/mp4");
+    },
+    "POST /api/media/ingest/cancel": async (req, res) => {
+      const { id } = await body(req);
+      const job = INGEST.get(id), child = INGEST_CHILD.get(id);
+      if (!job) return json(res, { error: "descarga desconocida" }, 404);
+      if (job.status === "descargando") { job.status = "falló"; job.error = "Cancelado."; child?.killAll?.(); }
+      json(res, { ok: true });
     },
     "GET /api/media/ingest/status": (req, res, q) => json(res, INGEST.get(q.get("id")) ?? { status: "falló", error: "descarga desconocida" }),
     // Audio del cliente (la carpeta audio/) → biblioteca de música, a nombre del cliente.
@@ -752,6 +770,7 @@ function spotdlTool(name) {
 }
 
 const INGEST = new Map();
+const INGEST_CHILD = new Map();
 // Qué herramientas hay instaladas (para el pie del menú y Ajustes).
 let toolCache = null;
 function toolStatus() {

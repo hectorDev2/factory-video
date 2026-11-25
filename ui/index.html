@@ -1694,15 +1694,20 @@ function bindSite(name, site) {
 // Tarjeta «Descargar un video por enlace» (yt-dlp).
 function bindDownload(name, opts = {}) {
   const fmt = (x) => `${Math.floor(x / 60)}:${(x % 60).toFixed(1).padStart(4, "0")}`;
-  const progress = async (id, onDone) => {
+  let jobId = null;
+  const progress = async (id) => {
+    jobId = id;
     for (;;) {
       const r = await api("/api/media/ingest/status?id=" + encodeURIComponent(id));
-      $("#dlBar").style.width = `${r.pct ?? 2}%`; $("#dlPhase").textContent = `${r.phase ?? ""}… ${Math.round(r.pct ?? 0)}%`;
-      if (r.status === "listo") return r;
-      if (r.status === "falló") throw new Error(r.error);
+      const secs = Math.round((Date.now() - (r.startedAt ?? Date.now())) / 1000), quiet = Date.now() - (r.updatedAt ?? Date.now()) > 40000;
+      $("#dlBar").style.width = `${r.pct ?? 2}%`;
+      $("#dlPhase").textContent = `${r.phase ?? ""}… ${Math.round(r.pct ?? 0)}% · ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}${quiet ? " · sin novedades; a veces el sitio tarda, puedes cancelar" : ""}`;
+      if (r.status === "listo") { jobId = null; return r; }
+      if (r.status === "falló") { jobId = null; throw new Error(r.error); }
       await new Promise((ok) => setTimeout(ok, 1000));
     }
   };
+  $("#dlCancel").onclick = () => { if (jobId) api("/api/media/ingest/cancel", { id: jobId }).catch(() => {}); };
   const busy = (on, label) => {
     $("#dlBtn").disabled = on; $("#dlPick").disabled = on; $("#dlProg").hidden = !on;
     if (on) { $("#dlBar").style.width = "2%"; $("#dlPhase").textContent = label; }
@@ -2200,7 +2205,7 @@ function showDl(name, url, opts = {}) {
       <div class="row pk-row"><button class="btn" id="pkPlay" type="button">▶ Escuchar el tramo</button><button class="btn primary" id="pkGo" type="button">Descargar fragmento</button><button class="btn" id="pkCancel" type="button">Cancelar</button></div>
     </div>
     <div id="dlResults" class="dl-results"></div>
-    <div id="dlProg" hidden><div class="progress"><div id="dlBar"></div></div><b class="hint" id="dlPhase"></b></div></section>`;
+    <div id="dlProg" hidden><div class="progress"><div id="dlBar"></div></div><div class="row" style="margin:6px 0 0;gap:10px"><b class="hint" id="dlPhase"></b><button class="linkbtn" id="dlCancel" type="button">Cancelar</button></div></div></section>`;
   if ($("#dlClose")) $("#dlClose").onclick = () => (box.hidden = true);
   bindDownload(name, opts);
   if (url) { $("#dlUrl").value = url; }
