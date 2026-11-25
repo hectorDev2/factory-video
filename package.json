@@ -1,0 +1,16 @@
+{
+  "name": "video-factory",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "list": "node factory.mjs list",
+    "new": "node factory.mjs new",
+    "preview": "node factory.mjs preview",
+    "validate": "node factory.mjs validate",
+    "render": "node factory.mjs render",
+    "ui": "node factory.mjs ui"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

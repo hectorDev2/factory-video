@@ -1,0 +1,9 @@
+{
+  "template": "title-card",
+  "quality": "draft",
+  "defaults": { "music": "daft-punk-one-more-time" },
+  "rows": [
+    { "name": "one-more-time-hook", "headline": "Una vez más", "subline": "Entrando en el estribillo." },
+    { "name": "one-more-time-intro", "headline": "Desde el principio", "subline": "Mismo tema, otro punto de entrada.", "musicStart": 0, "accent": "#a855f7" }
+  ]
+}

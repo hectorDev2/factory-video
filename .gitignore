@@ -1,0 +1,12 @@
+output/
+node_modules/
+.hyperframes/
+renders/
+.DS_Store
+templates/*/assets/music/_factory/
+music/*
+!music/library.json
+!music/demo-beat.m4a
+media/
+projects/
+runs/
