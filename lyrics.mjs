@@ -64,6 +64,35 @@ export function readWords(file) {
     .filter((w) => w.text && Number.isFinite(w.start) && Number.isFinite(w.end) && !/^[♪♫\s[\](){}*]+$/.test(w.text) && !/[�]/.test(w.text));
 }
 
+// ¿Está instalado Parakeet? (`npx hyperframes models install parakeet`)
+export function parakeetInstalled() {
+  const dir = path.join(os.homedir(), ".cache", "hyperframes", "parakeet");
+  try { return fs.readdirSync(dir).length > 0; } catch { return false; }
+}
+
+// Whisper directo, una palabra por segmento (-ml 1 -sow). Es mucho más preciso que el reparto uniforme de
+// `hyperframes transcribe`, sobre todo con una intro antes de la voz. Límite conocido: en los primeros segundos
+// del audio (y con música densa) Whisper puede estirar los tiempos; Parakeet es más fiable (ver README).
+// Devuelve null si falta el programa o el modelo (entonces se usa hyperframes, que descarga el modelo).
+export function whisperWords({ project, model, language }) {
+  const bin = ["whisper-cli", "whisper-cpp"].find((b) => spawnSync("which", [b]).status === 0);
+  const modelFile = path.join(os.homedir(), ".cache", "hyperframes", "whisper", "models", `ggml-${model}.bin`);
+  if (!bin || !fs.existsSync(modelFile)) return null;
+  const wav = path.join(project, "assets", "audio16k.wav"), base = path.join(project, "assets", "whisper");
+  spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-i", path.join(project, "assets", "audio.m4a"), "-ac", "1", "-ar", "16000", wav]);
+  const r = spawnSync(bin, ["-m", modelFile, "-f", wav, "-l", language, "-ml", "1", "-sow", "-ojf", "-of", base], { encoding: "utf8", maxBuffer: 1 << 26 });
+  fs.rmSync(wav, { force: true });
+  if (r.status !== 0 || !fs.existsSync(base + ".json")) return null;
+  const out = [];
+  for (const seg of JSON.parse(fs.readFileSync(base + ".json", "utf8")).transcription ?? []) {
+    const text = String(seg.text ?? "").trim();
+    if (!text || /[\[\]()♪♫*]/.test(text) || !/[\p{L}\p{N}]/u.test(text)) continue;
+    const start = seg.offsets.from / 1000, end = Math.max(seg.offsets.to / 1000, start + 0.05);
+    out.push({ text, start, end });
+  }
+  return out;
+}
+
 // Une el resultado de Claude con los tiempos reales: cada línea tiene inicio, fin y palabras con su tiempo.
 export function buildLines(words, spec, main, sub, duration) {
   const out = [];
@@ -323,16 +352,39 @@ export async function makeLyrics({ root, req, update, deps }) {
   await run("ffmpeg", ["-y", "-v", "error", ...cut, "-vn", "-af", `loudnorm=I=-14:TP=-1.5:LRA=11,afade=t=in:d=0.2,afade=t=out:st=${Math.max(0, duration - 0.6)}:d=0.6`, "-ar", "48000", "-c:a", "aac", "-b:a", "192k", path.join(project, "assets", "audio.m4a")], root);
   const dur = probe(path.join(project, "assets", "audio.m4a")) || duration;
 
-  step("Escuchando la letra (la primera vez descarga el modelo)", 14);
+  step("Escuchando la voz y marcando el tiempo de cada palabra", 14);
   const lang = ["es", "en"].includes(req.language) ? ["--language", req.language] : [];
   const model = lang.length && req.language === "en" ? "small.en" : "small";
   // hyperframes instalaría whisper-cpp con Homebrew por su cuenta; aquí se exige que lo hayas instalado tú.
   const hasWhisper = ["whisper-cli", "whisper-cpp", "whisper"].some((b) => spawnSync("which", [b]).status === 0);
   if (!hasWhisper) throw new Error("Falta el programa de transcripción. Instálalo una vez con: brew install whisper-cpp (y vuelve a intentarlo).");
-  await run("npx", [...HF, "transcribe", "assets/audio.m4a", "--model", model, ...lang, "--no-runtime-install", "--json"], project);
-  const tfile = ["assets/transcript.json", "transcript.json"].map((f) => path.join(project, f)).find((f) => fs.existsSync(f));
-  if (!tfile) throw new Error("No se obtuvo la transcripción");
-  const words = readWords(tfile);
+  const language = ["es", "en"].includes(req.language) ? req.language : "auto";
+  // Motor de voz: Parakeet (tiempos por cuadros de 0,08 s, más regulares y sin inventar voz en una intro) si está
+  // instalado; si no, o si falla, Whisper. Con música densa Whisper se equivoca hasta ~1 s palabra por palabra.
+  let words = null, engine = "whisper";
+  if (req.engine !== "whisper" && parakeetInstalled()) {
+    try {
+      await run("npx", [...HF, "transcribe", "assets/audio.m4a", "--engine", "parakeet", ...lang, "--json"], project);
+      const tfile = ["assets/transcript.json", "transcript.json"].map((f) => path.join(project, f)).find((f) => fs.existsSync(f));
+      const w = tfile ? readWords(tfile) : [];
+      if (w.length >= 3) { words = w; engine = "parakeet"; }
+    } catch {}
+  }
+  if (!words) {
+    words = whisperWords({ project, model, language });
+    if (!words) {
+      // Primera vez: hyperframes descarga el modelo; después se usa Whisper directo (una palabra por segmento).
+      await run("npx", [...HF, "transcribe", "assets/audio.m4a", "--model", model, ...lang, "--no-runtime-install", "--json"], project);
+      words = whisperWords({ project, model, language });
+      if (!words) {
+        const tfile = ["assets/transcript.json", "transcript.json"].map((f) => path.join(project, f)).find((f) => fs.existsSync(f));
+        if (!tfile) throw new Error("No se obtuvo la transcripción");
+        words = readWords(tfile);
+      }
+    }
+  }
+  update({ transcription: engine });
+  fs.writeFileSync(path.join(project, "assets", "words.json"), JSON.stringify({ engine, words }));
   if (words.length < 3) throw new Error("No se oye letra en este fragmento (probé con el modelo multilingüe). Prueba con otro tramo o con una canción con voz clara.");
 
   step("Claude corrige y traduce la letra", 40);
