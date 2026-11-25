@@ -191,5 +191,23 @@
       },
       "for": "prueba-web2"
     }
+  },
+  "santiago-insane-mundos-distraidos-feat-trezerrezderap": {
+    "artist": "Santiago Insane",
+    "title": "Mundos Distraidos (feat. Trezerrezderap)",
+    "hook": 0,
+    "source": "spotdl (yt-dlp)",
+    "youtube": "Ox9Tgknjxko",
+    "license": "ninguna — solo experimental",
+    "experimental": true
+  },
+  "mf-doom-doomsday-feat-pebbles-the-invisible-girl": {
+    "artist": "MF DOOM",
+    "title": "Doomsday (feat. Pebbles The Invisible Girl)",
+    "hook": 0,
+    "source": "spotdl (yt-dlp)",
+    "youtube": "gndkFhYh5Mo",
+    "license": "ninguna — solo experimental",
+    "experimental": true
   }
 }

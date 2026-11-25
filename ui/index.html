@@ -263,6 +263,15 @@
 .dl-item{display:grid;grid-template-columns:120px 1fr auto;gap:12px;align-items:center;padding:6px;border:1px solid var(--line,#2a2a2a);border-radius:8px}
 .dl-item img{width:120px;height:68px;object-fit:cover;border-radius:6px;background:#111}
 .dl-item b{display:block;font-size:13px;line-height:1.3}
+.img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}
+.img-item{position:relative;border:1px solid var(--line,#2a2a2a);border-radius:8px;overflow:hidden;background:#111;display:flex;flex-direction:column}
+.img-item a{display:block}
+.img-item img{display:block;width:100%;aspect-ratio:3/4;object-fit:cover}
+.img-item .lic{position:absolute;top:6px;left:6px;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(0,0,0,.72);color:#fff}
+.img-item .lic.by{background:#b45309}
+.img-item .meta{padding:6px 8px;font-size:11px;line-height:1.3;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.img-item .btn{margin:0 8px 8px}
+.img-item.added{outline:2px solid #22c55e}
 
 /* ===== Tema «Obsidian Kinetic» (diseño de Stitch: stitch_video_factory_ui_redesign/obsidian_kinetic/DESIGN.md) ===== */
 :root {
@@ -1599,7 +1608,7 @@ function showResults(q, results) {
 }
 
 // ---------- clientes y sus carpetas ----------
-const AUDIO_RE = /\.(mp3|m4a|wav|aac|flac|ogg)$/i, MEDIA_RE = /\.(jpe?g|png|webp|gif|avif|svg|mp4|mov|webm)$/i;
+const AUDIO_RE = /\.(mp3|m4a|wav|aac|flac|ogg)$/i, MEDIA_RE = /\.(jpe?g|jfif|png|webp|gif|avif|svg|mp4|mov|webm)$/i;
 const AUDIO_DIRS = ["audio", "music", "musica", "música", "sonido"];
 state.client = null;
 
@@ -2137,12 +2146,13 @@ function fichaContent(body, name, info, songs) {
   body.innerHTML = `
     <div class="toolbar">
       <div class="dropmenu"><button class="btn violet-solid" id="addBtn">＋ Añadir contenido ⌄</button>
-        <div class="menu" hidden id="addMenu"><button data-a="files">Subir archivos…</button><button data-a="dir">Subir una carpeta…</button><button data-a="web">Importar de la web</button><button data-a="dl">Descargar un video por enlace</button><button data-a="folder">Crear carpeta…</button></div></div>
+        <div class="menu" hidden id="addMenu"><button data-a="files">Subir archivos…</button><button data-a="dir">Subir una carpeta…</button><button data-a="web">Importar de la web</button><button data-a="dl">Descargar un video por enlace</button><button data-a="img">Buscar imágenes libres</button><button data-a="folder">Crear carpeta…</button></div></div>
       <div class="seg2"><button data-m="cards" class="${state.fview !== "list" ? "on" : ""}" title="Carpetas">▦</button><button data-m="list" class="${state.fview === "list" ? "on" : ""}" title="Todo el contenido">☰</button></div>
       <form class="row" id="newFolder" hidden style="margin:0"><input id="folderName" placeholder="Nueva carpeta, p. ej. promociones" /><button class="btn">Crear carpeta</button></form>
       <span class="hint grow"></span>
     </div>
     <div id="dlCard" hidden></div>
+    <div id="imgCard" hidden></div>
     <div class="dropbanner" id="dropAll"><span class="ic">✦</span><div><b>Arrastra archivos o carpetas aquí</b><span class="hint">Cada subcarpeta se guarda con su nombre; <code>audio/</code> va a la música del cliente.</span></div><span class="grow"></span><button class="btn" type="button">Explorar</button></div>
     <div class="folder-cards" id="fCards"></div>
     <div id="slots"></div>
@@ -2152,7 +2162,7 @@ function fichaContent(body, name, info, songs) {
   menu.onclick = (e) => {
     const a = e.target.closest("button")?.dataset.a; if (!a) return; menu.hidden = true;
     if (a === "files") pickFiles(null, false); else if (a === "dir") pickFiles(null, true); else if (a === "web") fichaTab("web");
-    else if (a === "dl") showDl(name); else if (a === "folder") { $("#newFolder").hidden = false; $("#folderName").focus(); }
+    else if (a === "dl") showDl(name); else if (a === "img") showImg(name); else if (a === "folder") { $("#newFolder").hidden = false; $("#folderName").focus(); }
   };
   $$(".seg2 button", body).forEach((b) => (b.onclick = () => { state.fview = b.dataset.m; state.openFolder = null; fichaTab("contenido"); }));
   $("#newFolder").onsubmit = async (e) => { e.preventDefault(); const f = slug($("#folderName").value); if (!f) return; await api("/api/media/folder", { project: name, folder: f }); openClient(name); };
@@ -2205,6 +2215,88 @@ function showDl(name, url, opts = {}) {
   bindDownload(name, opts);
   if (url) { $("#dlUrl").value = url; }
   $("#dlUrl").focus(); box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// Tarjeta «Buscar imágenes libres» (Openverse: CC0 / dominio público; CC BY opcional, con crédito guardado).
+function showImg(name) {
+  const box = $("#imgCard"); box.hidden = false;
+  box.innerHTML = `<section class="card2 webcard"><div class="wz-card-h"><h3>Buscar imágenes libres</h3><button class="linkbtn" id="imgClose">Cerrar</button></div>
+    <p class="hint" id="imgHint"></p>
+    <form class="row" id="imgForm" style="margin:0;flex-wrap:wrap">
+      <select id="imgSrc" style="width:auto"><option value="openverse">Openverse</option><option value="pexels">Pexels</option></select>
+      <input id="imgQ" placeholder="Qué buscas, p. ej. «café con leche», «playa al atardecer»" style="flex:1;min-width:220px" />
+      <select id="imgOr" style="width:auto"><option value="">Cualquier forma</option><option value="vertical" selected>Vertical (reels)</option><option value="horizontal">Horizontal</option><option value="cuadrada">Cuadrada</option></select>
+      <label class="hint">Carpeta <input id="imgFolder" value="stock" style="width:110px" /></label>
+      <label class="hint" id="imgByL" title="CC BY exige poner el nombre del autor al publicar. El crédito queda en .sources.json."><input type="checkbox" id="imgBy" style="width:auto" /> incluir CC BY (pide crédito)</label>
+      <button class="btn primary" id="imgBtn">Buscar</button>
+    </form>
+    <b class="hint" id="imgStatus"></b>
+    <div class="img-grid" id="imgGrid"></div>
+    <div class="row" style="justify-content:center;margin-top:10px"><button class="btn" id="imgMore" type="button" hidden>Más resultados</button></div></section>`;
+  const st = { q: "", page: 1, pages: 1, added: 0 };
+  const WARN = ' La licencia cubre los derechos, <b>no garantiza que la foto no traiga una marca de agua</b>: toca la miniatura para verla en grande antes de añadirla.';
+  const HINTS = {
+    openverse: 'Fotos de <a href="https://openverse.org" target="_blank" rel="noopener">Openverse</a> con licencia <b>CC0 o dominio público</b>: se pueden usar en anuncios sin pedir permiso ni dar crédito. Se guardan en la carpeta que elijas y entran al video como cualquier otra imagen.' + WARN,
+    pexels: '<a href="https://www.pexels.com" target="_blank" rel="noopener">Fotos de Pexels</a>: stock de buena calidad, uso comercial gratis y sin crédito obligatorio (no se puede revender la foto tal cual ni usar a personas reconocibles para avalar un producto). Se guardan en la carpeta que elijas.' + WARN,
+    pexelsOff: '<b>Pexels necesita una clave gratis.</b> Créala en <a href="https://www.pexels.com/api/" target="_blank" rel="noopener">pexels.com/api</a> y arranca la factory con <code>PEXELS_API_KEY=tu-clave npm run ui</code> (en PowerShell: <code>$env:PEXELS_API_KEY="tu-clave"; npm run ui</code>).',
+  };
+  const srcSel = $("#imgSrc");
+  const avail = { openverse: true, pexels: false };
+  const onSource = () => {
+    const s = srcSel.value, off = !avail[s];
+    $("#imgHint").innerHTML = off ? HINTS[s + "Off"] : HINTS[s];
+    $("#imgByL").hidden = s !== "openverse";
+    $("#imgBtn").disabled = off;
+    $("#imgGrid").innerHTML = ""; $("#imgStatus").textContent = ""; $("#imgMore").hidden = true;
+  };
+  srcSel.onchange = onSource;
+  onSource();
+  // Pexels se elige por defecto si tiene clave: sus fotos suelen ser mejores para anuncios.
+  api("/api/image/sources").then(({ sources }) => {
+    for (const s of sources) avail[s.id] = s.available;
+    $("option[value=pexels]", srcSel).textContent = avail.pexels ? "Pexels" : "Pexels (sin clave)";
+    if (avail.pexels) srcSel.value = "pexels";
+    onSource();
+  }).catch(() => {});
+  $("#imgClose").onclick = () => { box.hidden = true; box.innerHTML = ""; if (st.added) openClient(name); };
+
+  const card = (r) => {
+    const el = document.createElement("div"); el.className = "img-item";
+    el.innerHTML = `<a target="_blank" rel="noopener noreferrer" title="Ver en grande"><img alt="" loading="lazy" referrerpolicy="no-referrer" /></a><span class="lic"></span><div class="meta"></div><button class="btn" type="button">＋ Añadir</button>`;
+    $("a", el).href = r.full; $("img", el).src = r.thumb; $("img", el).alt = r.title;
+    const lic = $(".lic", el); lic.textContent = r.license; if (r.needsCredit) { lic.classList.add("by"); lic.title = "Pide dar crédito al autor"; }
+    $(".meta", el).textContent = [r.creator, r.w && r.h ? `${r.w}×${r.h}` : "", r.source].filter(Boolean).join(" · ");
+    $(".meta", el).title = r.title;
+    const btn = $(".btn", el);
+    btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = "Añadiendo…";
+      try {
+        const folder = slug($("#imgFolder").value) || "stock";
+        const out = await api("/api/media/image", { client: name, folder, id: r.id });
+        st.added++; el.classList.add("added"); btn.textContent = "✓ Añadida";
+        toast(out.needsCredit ? `Guardada en ${folder}/. Al publicar, acredita: ${out.credit}` : `Guardada en ${folder}/${out.file}`);
+      } catch (err) { btn.disabled = false; btn.textContent = "＋ Añadir"; toast(err.message, true); }
+    };
+    return el;
+  };
+
+  const load = async (append) => {
+    const grid = $("#imgGrid"), status = $("#imgStatus");
+    if (!append) grid.innerHTML = "";
+    status.textContent = "Buscando…"; $("#imgBtn").disabled = $("#imgMore").disabled = true;
+    try {
+      const p = new URLSearchParams({ q: st.q, page: st.page, source: srcSel.value, orientation: $("#imgOr").value, credit: srcSel.value === "openverse" && $("#imgBy").checked ? "1" : "0" });
+      const { results, total, pages } = await api("/api/image/search?" + p);
+      st.pages = pages;
+      results.forEach((r) => grid.append(card(r)));
+      status.textContent = grid.children.length ? `${total.toLocaleString("es")} resultados` : "Sin resultados. Prueba otras palabras (en inglés suele haber más) o marca «incluir CC BY».";
+      $("#imgMore").hidden = st.page >= st.pages || !results.length;
+    } catch (err) { status.textContent = ""; toast(err.message, true); }
+    $("#imgBtn").disabled = $("#imgMore").disabled = false;
+  };
+  $("#imgForm").onsubmit = (e) => { e.preventDefault(); st.q = $("#imgQ").value.trim(); if (!st.q) return; st.page = 1; load(false); };
+  $("#imgMore").onclick = () => { st.page++; load(true); };
+  $("#imgQ").focus(); box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // ===================== Asistente «Crear video» (4 pasos) =====================

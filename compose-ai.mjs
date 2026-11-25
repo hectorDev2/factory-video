@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLATFORMS, prettyName } from "./generate.mjs";
 import { STYLES, saveSong } from "./synth.mjs";
+import { claudeBin, CLAUDE_MISSING } from "./bin.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const KEYS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -103,12 +104,14 @@ Responde SOLO con el JSON. En "why", explica en español, en 2 frases, por qué 
 function askClaude(text, model) {
   return new Promise((resolve, reject) => {
     const args = ["-p", text, "--output-format", "json", "--tools", "", "--disable-slash-commands", "--no-session-persistence", "--effort", "low", "--model", model || "sonnet", "--json-schema", JSON.stringify(SCHEMA)];
-    const child = spawn("claude", args, { cwd: os.tmpdir(), env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
+    const bin = claudeBin();
+    if (!bin) return reject(new Error(CLAUDE_MISSING));
+    const child = spawn(bin, args, { cwd: os.tmpdir(), env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
     let out = "", err = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (err += d));
     const timer = setTimeout(() => { child.kill(); reject(new Error("Claude tardó demasiado (3 min)")); }, 180000);
-    child.on("error", (e) => reject(new Error(e.code === "ENOENT" ? "no encuentro el CLI `claude`" : e.message)));
+    child.on("error", (e) => reject(new Error(e.code === "ENOENT" ? CLAUDE_MISSING : e.message)));
     child.on("close", () => {
       clearTimeout(timer);
       let ev; try { ev = JSON.parse(out); } catch { return reject(new Error(`respuesta ilegible de Claude: ${(out || err).trim().slice(0, 200)}`)); }

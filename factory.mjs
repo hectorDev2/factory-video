@@ -21,6 +21,8 @@ import { fileURLToPath } from "node:url";
 import { FORMAT_IDS, PLATFORMS, readCopy, writeCopy, previewPlan } from "./generate.mjs";
 import { LYRIC_STYLES, LYRIC_FONTS, LYRIC_POSITIONS } from "./lyrics.mjs";
 import { captureSite, normalizeUrl } from "./site.mjs";
+import { searchImages, saveImage, imageSources } from "./images.mjs";
+import { npxCommand, claudeBin } from "./bin.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = path.join(ROOT, "templates");
@@ -30,7 +32,7 @@ const MUSIC = path.join(ROOT, "music");
 const MEDIA = path.join(ROOT, "media");
 const RUNS = path.join(ROOT, "runs"); // estado de cada generación con Claude
 const BOOT = Date.now().toString(36); // cambia en cada arranque: la página avisa para recargar // media/<cliente>/<carpeta>/<archivo>
-const MEDIA_EXT = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".svg", ".mp4", ".mov", ".webm"];
+const MEDIA_EXT = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".gif", ".avif", ".svg", ".mp4", ".mov", ".webm"];
 const AUDIO_EXT = [".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg"];
 const LOUDNESS = "loudnorm=I=-14:TP=-1.5:LRA=11"; // -14 LUFS: el objetivo de Instagram/TikTok/YouTube
 // Claves de fila que no son variables: nombre del archivo de salida y segundo de entrada a la canción.
@@ -140,7 +142,7 @@ function ui() {
     "GET /api/media/file": (req, res, q) => {
       const file = path.join(MEDIA, safeName(q.get("project")), safeName(q.get("slot")), safeName(q.get("file")));
       if (!fs.existsSync(file)) notFound();
-      const type = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif", ".avif": "image/avif", ".svg": "image/svg+xml", ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm" }[path.extname(file).toLowerCase()];
+      const type = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".jfif": "image/jpeg", ".png": "image/png", ".webp": "image/webp", ".gif": "image/gif", ".avif": "image/avif", ".svg": "image/svg+xml", ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm" }[path.extname(file).toLowerCase()];
       streamFile(req, res, file, type ?? "application/octet-stream");
     },
     "POST /api/media/upload": async (req, res, q) => {
@@ -149,6 +151,12 @@ function ui() {
       const dir = path.join(MEDIA, project, slot);
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, file), await rawBody(req));
+      json(res, { ok: true });
+    },
+    "POST /api/media/folder": async (req, res) => {
+      const { project, folder } = await body(req);
+      const dir = path.join(MEDIA, safeName(project), safeName(folder));
+      fs.mkdirSync(dir, { recursive: true });
       json(res, { ok: true });
     },
     "POST /api/media/order": async (req, res) => {
@@ -244,7 +252,7 @@ function ui() {
       });
       child.stdout.on("data", line);
       child.stderr.on("data", (d) => { line(d); });
-      child.on("error", (e) => { job.status = "falló"; job.error = e.code === "ENOENT" ? "No encuentro yt-dlp. Instálalo con: brew install yt-dlp" : e.message; });
+      child.on("error", (e) => { job.status = "falló"; job.error = e.code === "ENOENT" ? `No encuentro yt-dlp. Instálalo con: ${process.platform === "win32" ? "winget install yt-dlp" : "brew install yt-dlp"}` : e.message; });
       child.on("close", async () => {
         clearTimeout(timer);
         try {
@@ -269,6 +277,20 @@ function ui() {
         fs.rmSync(tmp, { recursive: true, force: true });
       });
       json(res, { id });
+    },
+    // Buscar imágenes con licencia libre (Openverse: CC0 / dominio público, y CC BY si se pide; Pexels con PEXELS_API_KEY).
+    "GET /api/image/sources": (req, res) => json(res, { sources: imageSources() }),
+    "GET /api/image/search": async (req, res, q) => {
+      try { json(res, await searchImages({ q: q.get("q"), source: q.get("source") ?? "openverse", orientation: q.get("orientation"), credit: q.get("credit") === "1", page: q.get("page") })); }
+      catch (e) { json(res, { error: e.message }, e.status ?? 502); }
+    },
+    // Guardar una imagen elegida en la carpeta de un cliente (queda como fuente para el video).
+    "POST /api/media/image": async (req, res) => {
+      const b = await body(req);
+      const client = safeName(b.client);
+      if (!fs.existsSync(path.join(MEDIA, client))) return json(res, { error: "ese cliente no existe" }, 400);
+      try { json(res, await saveImage({ root: ROOT, client, folder: safeName(b.folder || "stock"), id: b.id })); }
+      catch (e) { json(res, { error: e.message }, e.status ?? 502); }
     },
     "GET /api/media/preview": (req, res, q) => {
       const file = path.join(RUNS, "previews", `${safeName(q.get("id"))}.mp4`);
@@ -746,8 +768,13 @@ async function body(req) {
 
 // Los binarios que spotDL instala en su propio entorno (uv tool install spotdl).
 function spotdlTool(name) {
-  const bin = spawnSync("which", ["spotdl"], { encoding: "utf8" }).stdout.trim();
+  const bin = commandPath("spotdl");
   if (!bin) throw Object.assign(new Error("No encuentro spotdl. Instálalo con: uv tool install spotdl"), { status: 500 });
+  if (process.platform === "win32") {
+    const toolsDir = process.env.UV_TOOL_DIR || path.join(process.env.APPDATA || path.join(process.env.USERPROFILE, "AppData", "Roaming"), "uv", "tools");
+    const toolBin = path.join(toolsDir, "spotdl", "Scripts", `${name}.exe`);
+    if (fs.existsSync(toolBin)) return toolBin;
+  }
   return path.join(path.dirname(fs.realpathSync(bin)), name);
 }
 
@@ -760,15 +787,24 @@ function toolStatus() {
   toolCache = { t: Date.now(), v };
   return v;
 }
+function commandPath(name) {
+  const lookup = process.platform === "win32" ? "where.exe" : "which";
+  const r = spawnSync(lookup, [name], { encoding: "utf8" });
+  return String(r.stdout ?? "").split(/\r?\n/).find(Boolean)?.trim() || null;
+}
 function toolStatus0() {
-  const has = (b) => spawnSync("which", [b]).status === 0;
-  const ver = (b, a = ["--version"]) => { const r = spawnSync(b, a, { encoding: "utf8" }); return (r.stdout || r.stderr || "").split("\n")[0].trim().slice(0, 60); };
+  const has = (b) => !!commandPath(b);
+  const ver = (b, a = ["--version"]) => { const r = spawnSync(b, a, { encoding: "utf8" }); return String(r.stdout || r.stderr || "").split(/\r?\n/)[0].trim().slice(0, 60); };
   const yt = ytdlpBin();
+  const installFix = process.platform === "win32"
+    ? "choco install whisper-cpp -y"
+    : "brew install whisper-cpp";
   return {
-    ffmpeg: has("ffmpeg") ? { ok: true } : { ok: false, fix: "brew install ffmpeg" },
-    whisper: ["whisper-cli", "whisper-cpp"].some(has) ? { ok: true } : { ok: false, fix: "brew install whisper-cpp" },
-    ytdlp: spawnSync(yt, ["--version"]).status === 0 ? { ok: true, version: ver(yt) } : { ok: false, fix: "brew install yt-dlp" },
-    claude: has("claude") ? { ok: true } : { ok: false, fix: "instala Claude Code" },
+    ffmpeg: has("ffmpeg") ? { ok: true } : { ok: false, fix: process.platform === "win32" ? "choco install ffmpeg -y" : "brew install ffmpeg" },
+    whisper: ["whisper-cli", "whisper-cpp"].some(has) ? { ok: true } : { ok: false, fix: installFix },
+    ytdlp: spawnSync(yt, ["--version"]).status === 0 ? { ok: true, version: ver(yt) } : { ok: false, fix: process.platform === "win32" ? "winget install yt-dlp" : "brew install yt-dlp" },
+    // where.exe encuentra claude.cmd aunque no se pueda lanzar: se mira el ejecutable real que usará la factory.
+    claude: claudeBin() ? { ok: true, path: claudeBin() } : { ok: false, fix: "instala Claude Code o define CLAUDE_BIN con la ruta a claude.exe" },
   };
 }
 // YouTube cambia a menudo: de los yt-dlp instalados (el del sistema y el de spotDL) se usa el más reciente.
@@ -776,10 +812,10 @@ let ytCache = null;
 function ytdlpBin() {
   if (ytCache && Date.now() - ytCache.t < 600000) return ytCache.bin;
   const found = [];
-  const w = spawnSync("which", ["yt-dlp"], { encoding: "utf8" }).stdout.trim();
+  const w = commandPath("yt-dlp");
   if (w) found.push(w);
   try { found.push(spotdlTool("yt-dlp")); } catch {}
-  const ver = (b) => spawnSync(b, ["--version"], { encoding: "utf8" }).stdout.trim();
+  const ver = (b) => String(spawnSync(b, ["--version"], { encoding: "utf8" }).stdout ?? "").trim();
   const bin = found.map((b) => [b, ver(b)]).sort((a, b) => b[1].localeCompare(a[1]))[0]?.[0] ?? "yt-dlp";
   ytCache = { t: Date.now(), bin };
   return bin;
@@ -787,6 +823,7 @@ function ytdlpBin() {
 
 function run(cmd, args, timeoutMs, cwd = ROOT) {
   return new Promise((resolve) => {
+    if (cmd === "npx") [cmd, args] = npxCommand(args);
     const child = spawn(cmd, args, { cwd });
     let log = "";
     child.stdout.on("data", (d) => (log += d));
@@ -1084,7 +1121,7 @@ function probeDuration(file) {
 }
 function probeDuration0(file) {
   const r = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8" });
-  return Number(r.stdout.trim()) || 0;
+  return Number(String(r.stdout ?? "").trim()) || 0;
 }
 
 // ---------- plantillas ----------
@@ -1115,7 +1152,7 @@ function readTemplate(name) {
 // ---------- utilidades ----------
 
 function hf(args, cwd) {
-  const r = spawnSync("npx", ["--yes", `hyperframes@${HF_VERSION}`, ...args], { cwd, stdio: "inherit" });
+  const r = spawnSync(...npxCommand(["--yes", `hyperframes@${HF_VERSION}`, ...args]), { cwd, stdio: "inherit" });
   return r.status ?? 1;
 }
 

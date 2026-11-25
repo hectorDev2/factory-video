@@ -9,6 +9,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { npxCommand, claudeBin, CLAUDE_MISSING } from "./bin.mjs";
 
 export const LYRIC_STYLES = {
   karaoke: "Relleno karaoke: la palabra se llena de color mientras suena",
@@ -35,12 +36,14 @@ const LINES_SCHEMA = {
 function askJson(text, schema, model) {
   return new Promise((resolve, reject) => {
     const args = ["-p", text, "--output-format", "json", "--tools", "", "--disable-slash-commands", "--no-session-persistence", "--effort", "low", "--model", model || "sonnet", "--json-schema", JSON.stringify(schema)];
-    const child = spawn("claude", args, { cwd: os.tmpdir(), env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
+    const bin = claudeBin();
+    if (!bin) return reject(new Error(CLAUDE_MISSING));
+    const child = spawn(bin, args, { cwd: os.tmpdir(), env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
     let out = "", err = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (err += d));
     const timer = setTimeout(() => { child.kill(); reject(new Error("Claude tardó demasiado (4 min)")); }, 240000);
-    child.on("error", (e) => reject(new Error(e.code === "ENOENT" ? "no encuentro el CLI `claude`" : e.message)));
+    child.on("error", (e) => reject(new Error(e.code === "ENOENT" ? CLAUDE_MISSING : e.message)));
     child.on("close", () => {
       clearTimeout(timer);
       let ev; try { ev = JSON.parse(out); } catch { return reject(new Error(`respuesta ilegible de Claude: ${(out || err).trim().slice(0, 200)}`)); }
@@ -326,9 +329,13 @@ export async function makeLyrics({ root, req, update, deps }) {
   step("Escuchando la letra (la primera vez descarga el modelo)", 14);
   const lang = ["es", "en"].includes(req.language) ? ["--language", req.language] : [];
   const model = lang.length && req.language === "en" ? "small.en" : "small";
-  // hyperframes instalaría whisper-cpp con Homebrew por su cuenta; aquí se exige que lo hayas instalado tú.
-  const hasWhisper = ["whisper-cli", "whisper-cpp", "whisper"].some((b) => spawnSync("which", [b]).status === 0);
-  if (!hasWhisper) throw new Error("Falta el programa de transcripción. Instálalo una vez con: brew install whisper-cpp (y vuelve a intentarlo).");
+  // Detecta el binario local con el comando correcto para cada sistema operativo.
+  const findWhisper = (b) => {
+    const lookup = process.platform === "win32" ? "where.exe" : "which";
+    return spawnSync(lookup, [b], { encoding: "utf8" }).status === 0;
+  };
+  const hasWhisper = ["whisper-cli", "whisper-cpp", "whisper"].some(findWhisper);
+  if (!hasWhisper) throw new Error(`Falta el programa de transcripción. Instálalo una vez con: ${process.platform === "win32" ? "choco install whisper-cpp -y" : "brew install whisper-cpp"} (y vuelve a intentarlo).`);
   await run("npx", [...HF, "transcribe", "assets/audio.m4a", "--model", model, ...lang, "--no-runtime-install", "--json"], project);
   const tfile = ["assets/transcript.json", "transcript.json"].map((f) => path.join(project, f)).find((f) => fs.existsSync(f));
   if (!tfile) throw new Error("No se obtuvo la transcripción");
@@ -362,7 +369,7 @@ ${numbered}`, LINES_SCHEMA, req.model);
   fs.writeFileSync(path.join(project, "index.html"), indexHtml({ fmt, duration: dur }));
 
   step("Comprobando la composición", 62);
-  const check = spawnSync("npx", [...HF, "check", "--json"], { cwd: project, encoding: "utf8", maxBuffer: 1 << 26 });
+  const check = spawnSync(...npxCommand([...HF, "check", "--json"]), { cwd: project, encoding: "utf8", maxBuffer: 1 << 26 });
   try {
     const report = JSON.parse(check.stdout.slice(check.stdout.indexOf("{")));
     const errors = Object.values(report).flatMap((v) => v?.findings ?? []).filter((f) => f.severity === "error");

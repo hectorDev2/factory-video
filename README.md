@@ -149,6 +149,21 @@ En **Clientes → Descargar un video por enlace** puedes **buscar** (campo «bus
 
 Los videos privados o que piden iniciar sesión no se pueden bajar (la factory no usa tus cuentas). Descarga solo lo que sea tuyo, del cliente o tenga permiso: un video ajeno dentro de un anuncio tiene los mismos problemas de derechos que una canción.
 
+## Buscar imágenes libres de derechos
+
+En la ficha del cliente, **＋ Añadir contenido → Buscar imágenes libres**: escribe qué buscas, elige la forma (vertical para reels, horizontal, cuadrada) y la carpeta (por defecto `stock/`). Las fotos salen de [Openverse](https://openverse.org) (no necesita clave) y por defecto solo con licencia **CC0 o dominio público**, que se pueden usar en anuncios sin permiso ni crédito. Se descartan las de menos de 800 px de lado corto. «＋ Añadir» la guarda en `media/<cliente>/<carpeta>/` y entra al video como cualquier otra imagen; de dónde salió y su licencia quedan en `.sources.json` de esa carpeta.
+
+**Pexels** (selector «Fuente»): fotos de stock de mejor calidad que Openverse, uso comercial gratis y sin crédito obligatorio (no se puede revender la foto tal cual ni usar a personas reconocibles para avalar un producto; [licencia](https://www.pexels.com/license/)). Necesita una clave gratis de [pexels.com/api](https://www.pexels.com/api/):
+
+```bash
+PEXELS_API_KEY=tu-clave npm run ui                 # macOS / Linux / Git Bash
+$env:PEXELS_API_KEY="tu-clave"; npm run ui         # PowerShell
+```
+
+Con clave, Pexels es la fuente por defecto; sin clave, la interfaz explica cómo conseguirla. Las fotos se piden a 2160 px en el lado largo (alcanza para 1080×1920 sin pesar decenas de MB).
+
+En Openverse, con «incluir CC BY» aparecen más fotos, pero **hay que acreditar al autor al publicar**: el texto del crédito queda en `.sources.json` (campo `credit`). La licencia cubre los derechos, no garantiza que la foto no traiga una marca de agua puesta por quien la subió: mírala en grande (clic en la miniatura) antes de añadirla. Openverse limita las búsquedas anónimas; si responde que esperes, prueba más tarde.
+
 ## Ponerle letra a un video (español e inglés, con efectos)
 
 En **Clientes**, pasa el cursor sobre un video de cualquier carpeta (p. ej. `clips/`) y pulsa **♪ Letra**. Eliges el efecto, el color, si mostrar español e inglés o solo uno, el idioma de la canción, el formato (red social) y desde qué segundo. La factory:

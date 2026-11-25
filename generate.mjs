@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildSfx } from "./sfx.mjs";
+import { npxCommand, claudeBin, CLAUDE_MISSING } from "./bin.mjs";
 
 const HF_VERSION = "0.9.79";
 export const HF = ["--yes", `hyperframes@${HF_VERSION}`];
@@ -38,7 +39,10 @@ function aspect(w, h) { const g = (a, b) => (b ? g(b, a % b) : a); const d = g(w
 // Herramientas que Claude puede usar dentro del proyecto, sin pedir permiso.
 const CLAUDE_TOOLS = [
   "Read", "Write", "Edit", "Glob", "Grep", "Skill", "TodoWrite",
-  "Bash(node:*)", "Bash(npx hyperframes:*)", "Bash(npx --yes hyperframes:*)", "Bash(ls:*)", "Bash(cat:*)", "Bash(ffprobe:*)", "Bash(mkdir:*)", "Bash(cp:*)", "Bash(mv:*)",
+  "Bash(node:*)", "Bash(npx hyperframes:*)", "Bash(npx --yes hyperframes:*)",
+  // El CLAUDE.md que escribe `hyperframes init` manda usar `npm run check` y la versión fijada: son lo mismo que arriba.
+  `Bash(npx hyperframes@${HF_VERSION}:*)`, `Bash(npx --yes hyperframes@${HF_VERSION}:*)`, "Bash(npm run check)", "Bash(npm run check:*)",
+  "Bash(cd:*)", "Bash(ls:*)", "Bash(cat:*)", "Bash(ffprobe:*)", "Bash(mkdir:*)", "Bash(cp:*)", "Bash(mv:*)",
 ];
 
 export const FORMAT_IDS = Object.keys(PLATFORMS);
@@ -61,7 +65,7 @@ export async function generate({ root, req, update }) {
     // Continuar: mismo proyecto, misma sesión de Claude (con todo su contexto), sin rehacer nada.
     if (!fs.existsSync(path.join(project, "index.html"))) throw fail("No encuentro el proyecto para continuar");
     step("Claude continúa donde lo dejó", 10);
-    const claude = await runClaude("Continúa donde lo dejaste: termina el video según BRIEF.md, deja `npx hyperframes check` sin errores, revisa los snapshots y termina con un resumen de 3 líneas. No renderices.", project, update, { resume: typeof req.resume === "string" ? req.resume : undefined, model: req.model });
+    const claude = await runClaude("Continúa donde lo dejaste: termina el video según BRIEF.md, deja `npx hyperframes check` sin errores, revisa los snapshots y termina con un resumen de 3 líneas. No renderices. Nadie puede aprobar permisos: usa `npx hyperframes check` (sin `cd`, ya estás en el proyecto) y no reintentes comandos bloqueados.", project, update, { resume: typeof req.resume === "string" ? req.resume : undefined, model: req.model });
     if (!claude.ok) throw fail(`Claude no terminó: ${claude.error ?? "sin detalle"}`, claude);
     return finish(claude);
   }
@@ -111,7 +115,7 @@ export async function generate({ root, req, update }) {
     beats = { bpm: full.bpm, beatTimes: full.beatTimes.filter((t) => t >= req.start - 0.01 && t < req.start + req.duration).map((t) => Math.max(0, Math.round((t - req.start) * 1000) / 1000)) };
   }
   if (beats.beatTimes.length < 4) {
-    const beatsRun = spawnSync("npx", [...HF, "beats", music, "--json"], { cwd: project, encoding: "utf8" });
+    const beatsRun = spawnSync(...npxCommand([...HF, "beats", music, "--json"]), { cwd: project, encoding: "utf8" });
     try { beats = JSON.parse(beatsRun.stdout.slice(beatsRun.stdout.indexOf("{"))); } catch {}
   }
   const accents = loudMoments(music, req.duration);
@@ -145,6 +149,7 @@ export async function generate({ root, req, update }) {
   const prompt = [
     "Lee BRIEF.md y crea este video con HyperFrames en este proyecto. Carga la skill /hyperframes para su contrato; el plan de cortes, la música y las transiciones ya están resueltos en el brief, así que ve directo a escribir las escenas.",
     "Trabaja sin hacer preguntas: no hay nadie para responder. Decide tú con el brief.",
+    "Tampoco hay nadie para aprobar permisos: un comando bloqueado seguirá bloqueado aunque lo repitas. Ya estás en la carpeta del proyecto (no hace falta `cd`). Para comprobar usa `npx hyperframes check` y para ver fotogramas `npx hyperframes snapshot`; el resto, con Read/Write/Edit/Glob/Grep. Si un comando se bloquea, no lo reintentes: sigue con otra herramienta permitida.",
     "Cuando `npx hyperframes check` no tenga errores y hayas revisado los snapshots, termina con un resumen de 3 líneas. No renderices: la factory renderiza después.",
   ].join("\n");
   const claude = await runClaude(prompt, project, update, { model: req.model });
@@ -155,7 +160,7 @@ export async function generate({ root, req, update }) {
   // 6 · Comprobación y render
   async function finish(claude) {
   step("Comprobando la composición", 80);
-  const check = spawnSync("npx", [...HF, "check", "--json"], { cwd: project, encoding: "utf8", maxBuffer: 1 << 26 });
+  const check = spawnSync(...npxCommand([...HF, "check", "--json"]), { cwd: project, encoding: "utf8", maxBuffer: 1 << 26 });
   try {
     const report = JSON.parse(check.stdout.slice(check.stdout.indexOf("{")));
     const errors = Object.values(report).flatMap((v) => v?.findings ?? []).filter((f) => f.severity === "error");
@@ -260,7 +265,9 @@ function runClaude(prompt, cwd, update, { resume, model } = {}) {
     if (model) args.push("--model", model);
     args.push("--effort", "medium");
     args.push("--allowedTools", ...CLAUDE_TOOLS);
-    const child = spawn("claude", args, { cwd, env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
+    const bin = claudeBin();
+    if (!bin) return resolve({ ok: false, error: CLAUDE_MISSING });
+    const child = spawn(bin, args, { cwd, env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
     let buf = "", result = null, turns = 0, stderr = "", session = resume ?? null, lastText = "";
     const activity = [];
     const push = (line) => { activity.push(line); if (activity.length > 12) activity.shift(); update({ activity: [...activity] }); };
@@ -284,7 +291,7 @@ function runClaude(prompt, cwd, update, { resume, model } = {}) {
     });
     child.stderr.on("data", (d) => (stderr += d));
     const timer = setTimeout(() => { child.kill(); push("⏱ Se agotó el tiempo (30 min)"); }, CLAUDE_TIMEOUT_MS);
-    child.on("error", (e) => resolve({ ok: false, error: e.code === "ENOENT" ? "no encuentro el CLI `claude`" : e.message }));
+    child.on("error", (e) => resolve({ ok: false, error: e.code === "ENOENT" ? CLAUDE_MISSING : e.message }));
     child.on("close", (code) => {
       clearTimeout(timer);
       const errText = result?.is_error ? String(result.result ?? "") : lastText;
@@ -530,6 +537,7 @@ export function prettyName(file) {
 
 export function run(cmd, args, cwd, onLine) {
   return new Promise((resolve, reject) => {
+    if (cmd === "npx") [cmd, args] = npxCommand(args);
     const child = spawn(cmd, args, { cwd });
     let log = "";
     const on = (d) => { log += d; if (onLine) String(d).split("\n").forEach(onLine); };
