@@ -9,7 +9,7 @@ Una **fábrica de videos cortos para redes sociales**, hecha para trabajar con v
 | 🎵 **Música a medida** | Canciones compuestas por código, o por Claude leyendo la web del cliente. Sin derechos de terceros | ~3–15 s |
 | 📦 **Lotes por plantilla** | Plantillas HTML + un JSON = muchos MP4 de una vez, por terminal | segundos por video |
 
-> **Contenido de este documento:** [Casos de uso](#casos-de-uso) · [Inicio rápido](#inicio-rápido) · [Reel con subtítulos](#-reel-con-subtítulos) · [Video con música e imágenes](#-video-con-música-e-imágenes) · [Música](#-música) · [Clientes y contenido](#-clientes-y-contenido) · [La interfaz](#la-interfaz) · [Arquitectura](#arquitectura) · [Dónde se guarda todo](#dónde-se-guarda-todo) · [Lotes por plantilla](#-lotes-por-plantilla-terminal) · [Referencia](#referencia) · [Límites y problemas conocidos](#límites-y-problemas-conocidos) · [Música y derechos](#música-y-derechos)
+> **Contenido de este documento:** [Casos de uso](#casos-de-uso) · [Requisitos mínimos](#requisitos-mínimos) · [Inicio rápido](#inicio-rápido) · [Reel con subtítulos](#-reel-con-subtítulos) · [Video con música e imágenes](#-video-con-música-e-imágenes) · [Música](#-música) · [Clientes y contenido](#-clientes-y-contenido) · [La interfaz](#la-interfaz) · [Arquitectura](#arquitectura) · [Dónde se guarda todo](#dónde-se-guarda-todo) · [Lotes por plantilla](#-lotes-por-plantilla-terminal) · [Referencia](#referencia) · [Límites y problemas conocidos](#límites-y-problemas-conocidos) · [Música y derechos](#música-y-derechos)
 
 ---
 
@@ -64,23 +64,89 @@ flowchart TB
 
 ---
 
-## Inicio rápido
+## Requisitos mínimos
 
-### Requisitos
+Lo que necesitas para usar la factory. Está probada en un **Mac con Apple Silicon (macOS 26), 8 GB de RAM y 8 núcleos**; ese es el equipo mínimo que se ha comprobado.
 
-| Herramienta | Para qué | Cómo instalarla |
+### El equipo
+
+| | Mínimo | Notas |
 |---|---|---|
-| **Node.js ≥ 22** | Servidor y herramientas | [nodejs.org](https://nodejs.org) |
-| **Claude Code** (`claude`) | Compone los videos, corrige y traduce los subtítulos, decide la música | [claude.com/claude-code](https://claude.com/claude-code) |
-| **ffmpeg** | Corta audio y video | `brew install ffmpeg` |
-| **yt-dlp** | Descarga y búsqueda de videos | `brew install yt-dlp` (o el que trae spotDL) |
-| **whisper-cpp** | Transcribe la voz (respaldo de Parakeet) | `brew install whisper-cpp` |
-| *Recomendado:* Parakeet | Tiempos de voz más precisos para sincronizar los subtítulos | `npx hyperframes models install parakeet` |
-| HyperFrames | Renderiza (se descarga solo con `npx`) | — |
-| *Opcional:* Earshot | Efectos de sonido generados | `uv tool install "earshot @ git+https://github.com/Leonxlnx/earshot"` |
-| *Opcional:* spotDL | Bajar canciones de Spotify | `uv tool install spotdl` |
+| **Sistema** | **macOS** | Es lo único probado. Usa la papelera de macOS (`~/.Trash`) y `open -R` para «mostrar en Finder». En Linux debería funcionar casi todo, pero no se ha probado; Windows no está soportado |
+| **Procesador y RAM** | Apple Silicon, 8 GB | Renderizar abre un Chrome sin ventana. No se ha probado con menos de 8 GB |
+| **Disco libre** | **≥ 10 GB** | Las herramientas ocupan ~1 GB (hasta ~2 GB con todos los modelos opcionales); cada video ocupa unos 20–40 MB terminado y 20–60 MB su proyecto editable |
+| **Internet** | Sí, siempre | Descargas, Claude, las tipografías de la interfaz y la librería de animación (GSAP), que las composiciones cargan desde internet |
+
+### El software
+
+| Herramienta | Versión probada | Para qué | Cómo instalarla |
+|---|---|---|---|
+| **Node.js** | ≥ 22 (22.22) | Servidor y herramientas | [nodejs.org](https://nodejs.org) o `brew install node` |
+| **Claude Code** (`claude`) | 2.1 | Compone los videos, corrige y traduce los subtítulos, decide la música | [claude.com/claude-code](https://claude.com/claude-code), y **iniciar sesión** una vez con `claude` |
+| **ffmpeg** | 9.0 | Corta audio y video | `brew install ffmpeg` |
+| **yt-dlp** | 2026.10 | Descarga y búsqueda de videos | `brew install yt-dlp` (YouTube cambia a menudo: mantenlo actualizado) |
+| **whisper-cpp** | 1.x | Transcribe la voz | `brew install whisper-cpp` |
+| HyperFrames | 0.9.79 (fijada) | Renderiza los videos | Se descarga sola con `npx` (no se instala a mano) |
+| *Recomendado:* **Parakeet** | 0.6b v3 | Tiempos de voz más precisos para sincronizar los subtítulos | `npx hyperframes models install parakeet` |
+| *Opcional:* Earshot | — | Efectos de sonido generados | `uv tool install "earshot @ git+https://github.com/Leonxlnx/earshot"` |
+| *Opcional:* spotDL | — | Bajar canciones de Spotify | `uv tool install spotdl` |
 
 La factory **no instala nada por su cuenta**: si falta una herramienta, la pantalla **Ajustes** te muestra el comando exacto.
+
+### Lo que se descarga la primera vez
+
+| Qué | Tamaño | Cuándo |
+|---|---|---|
+| Chrome sin ventana de HyperFrames | ~430 MB | Al renderizar o importar una web por primera vez |
+| Modelo de voz de Whisper (`small`) | ~470 MB | Al subtitular por primera vez (`small.en` es otro modelo igual de grande, solo si subtitulas en inglés) |
+| Parakeet | ~640 MB | Al instalarlo (opcional) |
+
+### Cuentas
+
+- **Claude:** una sesión de Claude Code iniciada (con tu suscripción o con una clave de API). **Gasta tu plan**: ver [qué gasta tu plan de Claude](#qué-gasta-tu-plan-de-claude).
+- No hace falta cuenta de HyperFrames, de YouTube ni de ninguna red social.
+
+### Qué necesita cada producto
+
+| Producto | Node | Claude | ffmpeg | yt-dlp | Whisper / Parakeet | HyperFrames |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| 🎬 Reel con subtítulos | ✅ | ✅ | ✅ | ✅ (si descargas) | ✅ | ✅ |
+| 🎞️ Video con música e imágenes | ✅ | ✅ | ✅ | — | — | ✅ |
+| 🎵 Música por parámetros | ✅ | — | ✅ | — | — | — |
+| 🎵 Música con Claude | ✅ | ✅ | ✅ | — | — | — |
+| 📦 Lotes por plantilla | ✅ | — | ✅ | — | — | ✅ |
+| Descargar videos o canciones | ✅ | — | ✅ | ✅ | — | — |
+
+### Cuánto tarda (medido en ese equipo)
+
+| Tarea | Tiempo |
+|---|---|
+| Reel de ~20 s | 5–8 min en total |
+| Reel de 60 s | ~8–10 min |
+| Video con música e imágenes (15 s) | 8–15 min |
+| Música por parámetros | 2–3 s |
+| Música con Claude | ~15 s |
+| Render de un video largo | calcula 4–8 s por cada segundo de video; «Borrador» es más rápido |
+
+---
+
+## Inicio rápido
+
+### Instalación
+
+```bash
+# 1. Herramientas (macOS con Homebrew)
+brew install node ffmpeg yt-dlp whisper-cpp
+
+# 2. Claude Code: instálalo (claude.com/claude-code) y abre una sesión una sola vez
+claude
+
+# 3. La factory
+git clone https://github.com/hectorDev2/factory-video.git
+cd factory-video
+```
+
+No hay `npm install`: la factory no tiene dependencias propias.
 
 ### Arrancar
 
@@ -88,7 +154,7 @@ La factory **no instala nada por su cuenta**: si falta una herramienta, la panta
 npm run ui        # → http://localhost:4600
 ```
 
-Todo se hace desde ahí. La primera vez que subtitules algo, Whisper descarga su modelo de voz (una sola vez).
+Todo se hace desde ahí. Abre **Ajustes** para comprobar que las herramientas están en verde. La primera vez que subtitules algo, Whisper descarga su modelo de voz (una sola vez).
 
 ---
 
@@ -150,6 +216,16 @@ El verso va arriba y su traducción debajo. En 9:16 el texto queda dentro de la 
 
 Cada línea lleva una **placa oscura del tamaño del texto** (36 %) para que se lea sobre cualquier fondo, también sobre videos claros. Si HyperFrames avisa de un contraste justo, es solo un aviso: no impide generar el reel.
 
+### Cómo entran y salen las frases
+
+| Entrada | Salida |
+|---|---|
+| Subir, desde la izquierda, desde la derecha, zoom con rebote, caída con rebote y **desenfoque** (aparece borrosa y gigante hasta enfocarse) | Desvanecer, **desenfoque**, deslizarse a un lado, encogerse, o **dispersarse** (cada palabra sale volando por su lado) |
+
+Cada efecto tiene sus entradas y salidas por defecto y el modo dinámico las va alternando.
+
+**Palabra clave.** Claude marca en cada frase la palabra más importante o emotiva; esa palabra sale **más grande, de otro color** y con un pequeño salto al decirse. En el modo dinámico se omite en las frases tranquilas, para que las que importan destaquen.
+
 ### Modo dinámico: cómo decide cada frase
 
 ```mermaid
@@ -180,6 +256,10 @@ En el diálogo eliges el **destino** y la **duración exacta en segundos** (con 
 | YouTube | Video 16:9 | 1920×1080 | 90 s |
 
 > Un video horizontal pasado a vertical se recorta por el centro: pierde los lados.
+
+### Subtitular un video completo
+
+En el diálogo, el chip **🎞 Video completo** usa todo el video (hasta 30 min), y puedes escribir cualquier duración aunque pase del máximo de la red: te avisa («esa red no lo aceptará en ese formato») pero lo crea. Para transcripciones largas, Claude trabaja **por partes** (~260 palabras cada una, sin cortar una frase), así que el costo crece con la duración. El render también: calcula entre 4 y 8 s por cada segundo de video; con **Calidad: Borrador** va bastante más rápido.
 
 ---
 
@@ -290,7 +370,23 @@ flowchart TD
 
 **Descargar videos.** Funciona con cualquier sitio que entienda `yt-dlp`. Se guarda como MP4 H.264 (hasta 1080p, máx. 700 MB) en `clips/`, con el origen anotado en `.sources.json`. Muestra el avance real, el tiempo transcurrido y se puede cancelar. La factory usa el `yt-dlp` más reciente que encuentre; si YouTube devuelve un 403, actualízalo. Los videos privados no se pueden bajar (no usa tus cuentas).
 
-**Lista «Listo para crear».** En la ficha: imágenes suficientes, logo, web analizada y música de marca.
+### Gestionar un cliente
+
+La lista de **Clientes** muestra cada uno con **Abrir · Renombrar · Eliminar**. La ficha tiene arriba su nombre y las acciones («🎬 Crear reel», «🎞️ Video con IA» y «⋯» con renombrar, editar datos y eliminar) y seis pestañas, cada una con solo lo que corresponde:
+
+| Pestaña | Qué muestra |
+|---|---|
+| **Resumen** | Qué le falta para estar listo (con el botón para resolverlo), lo que está en marcha y sus últimos videos |
+| **Contenido** | Sus carpetas y la subida de archivos; descargar videos por enlace |
+| **Web** | Importar su web y ver lo que se leyó |
+| **Videos** | Los videos terminados |
+| **Música** | Sus canciones de marca |
+| **Datos** | Un formulario corto: marca, rubro, web, llamada a la acción y notas de estilo |
+
+Lo que guardas en **Datos** (`media/<cliente>/profile.json`) se usa como valor inicial al crear videos (marca, llamada a la acción y notas) y como contexto para la música que compone Claude; lo que escribas a mano en un video no se pisa.
+
+- **Renombrar** cambia la carpeta del cliente y mueve con ella sus videos, sus proyectos y las canciones que lleven su nombre. No se puede si tiene un proceso en marcha ni si ya existe otro cliente con ese nombre.
+- **Eliminar** muestra antes qué contiene y deja elegir qué más quitar: sus videos y proyectos (vienen marcados) y sus canciones (no, porque se pueden reutilizar). Todo va a la **papelera de macOS** y se puede recuperar.
 
 ---
 
@@ -459,6 +555,7 @@ Bajar música de Spotify por terminal (experimental): `node factory.mjs fetch "D
 |---|---|
 | Estado | `GET /api/state` · `GET /api/version` |
 | Clientes y archivos | `GET /api/media` · `GET /api/media/file` · `POST /api/media/upload` · `/order` · `/delete` · `/folder` |
+| Gestionar clientes | `POST /api/clients` · `GET /api/clients/info` · `GET/POST /api/clients/profile` · `POST /api/clients/rename` · `POST /api/clients/delete` |
 | Web del cliente | `POST /api/site/capture` · `GET /api/site/status` · `GET /api/site` |
 | Descargas | `GET /api/video/search` · `POST /api/media/ingest` (`preview`, `start`, `end`) · `GET /api/media/ingest/status` · `POST /api/media/ingest/cancel` · `GET /api/media/preview` |
 | Reel | `POST /api/lyrics` |
