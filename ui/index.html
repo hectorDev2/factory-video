@@ -610,6 +610,20 @@ input[type=range] { accent-color: var(--accent); }
 .clipcard video { width: 100%; aspect-ratio: 9/12; object-fit: cover; border-radius: 8px; background: #000; display: block; }
 .clipcard small { display: block; margin-top: 6px; color: var(--dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .field.inline { flex-direction: row; align-items: center; gap: 8px; }
+.tk-box { margin-top: 16px; }
+.tk-uri { display: flex; gap: 8px; align-items: center; margin: 8px 0 12px; }
+.tk-uri code { flex: 1; padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); font-size: 12px; overflow-x: auto; white-space: nowrap; }
+.tk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .tk-grid { grid-template-columns: 1fr; } }
+.tk-acct { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); }
+.tk-acct img, .tk-av { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: none; display: grid; place-items: center; background: var(--panel-2); }
+.tk-acct div { display: flex; flex-direction: column; gap: 2px; }
+.tk-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tk-item:last-child { border: 0; }
+.tk-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.tk-main b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-err { flex-basis: 100%; color: var(--accent); font-size: 12px; }
+.tk-when { display: grid; gap: 10px; padding: 16px 22px; }
 
 .durbox { margin: 12px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
@@ -1454,6 +1468,7 @@ function renderVideoDetail(box, v, opts = {}) {
   const a = document.createElement("a"); a.className = "btn primary"; a.href = videoUrl(v); a.download = `${v.name}.mp4`; a.textContent = "Descargar MP4"; acts.append(a);
   const mk = (label, fn) => { const b = document.createElement("button"); b.className = "btn"; b.textContent = label; b.onclick = fn; acts.append(b); return b; };
   if (v.client) mk("♪ Subtitular", () => lyricsDialog(v.client, v.path, { fromOutput: true, url: videoUrl(v), label: v.name }));
+  mk("📤 Enviar a TikTok", () => tiktokDialog(v)).title = "Lo sube como borrador a la bandeja de tu app de TikTok, ahora o a la hora que elijas";
   mk("🗑 Eliminar", () => confirmDelete([v], afterDelete)).classList.add("danger");
   mk("Mostrar en Finder", () => api("/api/reveal", { path: v.path }).catch((e) => toast(e.message, true)));
   if (v.project) {
@@ -2860,7 +2875,9 @@ async function renderReel() {
         <div id="rExisting"></div></section>
       <section class="card2" id="rOutBox" hidden><div class="wz-card-h"><span class="num2">2</span><h3>Subtitulando</h3></div>
         <div class="progress"><div id="rBar2"></div></div><div class="row" style="margin:8px 0 0"><b id="rSt2"></b><span class="hint" id="rTm2"></span></div><div id="rRes"></div></section>
-    </div>`;
+    </div>
+    <section class="card2 tk-box" id="tkBox"><p class="hint">Cargando TikTok…</p></section>`;
+  renderTikTok($("#tkBox"));
   const sel = $("#rClient");
   if (!state.clients.length) { v.querySelector(".reel-flow").innerHTML = '<section class="card2"><p class="hint">Primero crea un cliente: ahí se guardan los videos que traigas. <button class="linkbtn" data-go="clientes">Ir a Clientes</button></p></section>'; return; }
   for (const c of state.clients) sel.add(new Option(c, c));
@@ -2905,6 +2922,146 @@ async function reelFollow(id) {
   pollRuns();
 }
 
+
+// ===================== TikTok: cuenta vinculada y envíos a la bandeja =====================
+// Los reels llegan como BORRADOR a la bandeja de la app de TikTok (permiso video.upload): ahí se elige portada, texto y se publica.
+const TK_LABEL = { programado: "Programado", subiendo: "Subiendo", procesando: "TikTok lo procesa", "en tu bandeja": "En tu bandeja", publicado: "Publicado", "falló": "Falló" };
+const TK_CHIP = { "en tu bandeja": "ok", publicado: "ok", "falló": "bad", subiendo: "on", procesando: "on" };
+const tkDate = (t) => new Date(t).toLocaleString("es", { dateStyle: "medium", timeStyle: "short" });
+
+async function renderTikTok(box) {
+  if (!box?.isConnected) return;
+  if (!renderTikTok.listening) {
+    renderTikTok.listening = true;
+    // La pestaña del inicio de sesión avisa al terminar (puede venir de localhost o 127.0.0.1: solo se refresca el estado).
+    window.addEventListener("message", (e) => { if (e.data === "tiktok-linked") renderTikTok($("#tkBox")); });
+  }
+  let s;
+  try { s = await api("/api/tiktok/status"); } catch (e) { box.innerHTML = `<p class="hint"></p>`; $("p", box).textContent = e.message; return; }
+  if (!box.isConnected) return;
+  const head = `<div class="wz-card-h"><span class="num2">3</span><h3>Publicar en TikTok</h3><span class="hint">Los reels llegan como borrador a la bandeja de tu app de TikTok: ahí eliges portada y texto, y publicas.</span></div>`;
+
+  if (!s.configured || renderTikTok.edit) {
+    box.innerHTML = head + `
+      <p class="hint">1. Crea una app en <a href="https://developers.tiktok.com/apps" target="_blank" rel="noopener">TikTok for Developers</a> con <b>Login Kit</b> (plataforma <b>Desktop</b>) y <b>Content Posting API</b>.<br>2. En Login Kit → Redirect URI registra exactamente esta dirección:</p>
+      <div class="tk-uri"><code></code><button class="btn" id="tkCopy">Copiar</button></div>
+      <p class="hint">3. Pega las credenciales de la app. El secreto se guarda solo en esta computadora (social/tiktok.json) y no se vuelve a mostrar.</p>
+      <div class="tk-grid"><label class="field">Client key<input id="tkKey" autocomplete="off" spellcheck="false" /></label>
+        <label class="field">Client secret<input id="tkSecret" type="password" autocomplete="off" /></label></div>
+      <div class="row"><button class="btn primary" id="tkSave">Guardar</button>${s.configured ? '<button class="btn" id="tkCancel">Cancelar</button>' : ""}</div>`;
+    $(".tk-uri code", box).textContent = s.redirectUri;
+    $("#tkKey", box).value = s.clientKey;
+    if (s.configured) $("#tkSecret", box).placeholder = "(déjalo vacío para no cambiarlo)";
+    $("#tkCopy", box).onclick = () => navigator.clipboard.writeText(s.redirectUri).then(() => toast("Dirección copiada"), () => toast("No pude copiar: selecciónala a mano", true));
+    $("#tkSave", box).onclick = async () => {
+      try { await api("/api/tiktok/app", { clientKey: $("#tkKey", box).value, clientSecret: $("#tkSecret", box).value }); renderTikTok.edit = false; toast("Credenciales guardadas"); renderTikTok(box); }
+      catch (e) { toast(e.message, true); }
+    };
+    if (s.configured) $("#tkCancel", box).onclick = () => { renderTikTok.edit = false; renderTikTok(box); };
+    return;
+  }
+
+  box.innerHTML = head + `<div class="tk-acct"><span class="tk-av">♪</span><div><b></b><span class="hint"></span></div><span class="grow"></span><button class="btn" id="tkAcctBtn"></button></div>
+    <div class="row" style="margin:10px 0 0"><button class="linkbtn" id="tkEditApp">Cambiar las credenciales de la app</button></div>
+    <h4 class="eyebrow" style="margin:18px 0 4px">Envíos a TikTok</h4><div id="tkQueue"><p class="hint">Cargando…</p></div>
+    <p class="hint" style="margin-top:10px">Para enviar un reel: ábrelo (aquí al terminarlo o en Videos) y pulsa «📤 Enviar a TikTok». Lo programado se envía solo mientras la factory está abierta; si estaba cerrada a esa hora, sale apenas la abras.</p>`;
+  const acct = $(".tk-acct", box), btn = $("#tkAcctBtn", box);
+  if (s.linked) {
+    if (s.user?.avatar) { const img = document.createElement("img"); img.src = s.user.avatar; img.alt = ""; img.referrerPolicy = "no-referrer"; $(".tk-av", acct).replaceWith(img); }
+    $("b", acct).textContent = s.user?.name || "Cuenta vinculada";
+    $(".hint", acct).textContent = `Vinculada · permisos: ${s.grantedScopes}`;
+    btn.textContent = "Desvincular";
+    btn.onclick = async () => {
+      if (!confirm("¿Desvincular la cuenta de TikTok? Lo programado no se enviará hasta que vuelvas a vincular.")) return;
+      try { await api("/api/tiktok/unlink", {}); toast("Cuenta desvinculada"); renderTikTok(box); } catch (e) { toast(e.message, true); }
+    };
+  } else {
+    $("b", acct).textContent = s.expired ? "La vinculación caducó" : "Ninguna cuenta vinculada";
+    $(".hint", acct).textContent = "Se abre TikTok para que autorices a la factory a subir borradores a tu cuenta.";
+    btn.className = "btn primary"; btn.textContent = "Vincular cuenta";
+    btn.onclick = async () => {
+      try {
+        const { url } = await api("/api/tiktok/auth", {});
+        const w = window.open(url, "tiktok-auth", "width=520,height=780");
+        if (!w) location.href = url; // ventana bloqueada: se va en esta misma pestaña y vuelve con «Volver a la factory»
+      } catch (e) { toast(e.message, true); }
+    };
+  }
+  $("#tkEditApp", box).onclick = () => { renderTikTok.edit = true; renderTikTok(box); };
+  drawTkQueue($("#tkQueue", box));
+}
+
+async function drawTkQueue(el) {
+  if (!el?.isConnected) return;
+  clearTimeout(drawTkQueue.t);
+  let items = [];
+  try { ({ items } = await api("/api/tiktok/queue")); } catch (e) { el.innerHTML = '<p class="hint"></p>'; $("p", el).textContent = e.message; return; }
+  if (!el.isConnected) return;
+  el.innerHTML = items.length ? "" : '<p class="hint">Todavía no enviaste nada.</p>';
+  for (const it of items.slice().reverse().slice(0, 30)) {
+    const row = document.createElement("div"); row.className = "tk-item";
+    row.innerHTML = `<div class="tk-main"><b></b><span class="hint"></span></div><span class="chip"></span>`;
+    $("b", row).textContent = it.name;
+    const when = it.status === "programado" ? `sale el ${tkDate(it.at)}` : it.doneAt ? `enviado el ${tkDate(it.doneAt)}` : tkDate(it.at);
+    $(".hint", row).textContent = [it.client, when].filter(Boolean).join(" · ");
+    const chip = $(".chip", row);
+    chip.textContent = (TK_LABEL[it.status] ?? it.status) + (it.status === "subiendo" ? ` ${it.pct ?? 0}%` : "");
+    if (TK_CHIP[it.status]) chip.classList.add(TK_CHIP[it.status]);
+    const act = (label, url, cls) => {
+      const b = document.createElement("button"); b.className = "btn" + (cls ? " " + cls : ""); b.textContent = label;
+      b.onclick = async () => { b.disabled = true; try { await api(url, { id: it.id }); drawTkQueue(el); } catch (e) { toast(e.message, true); b.disabled = false; } };
+      row.append(b);
+    };
+    if (it.status === "falló") act("Reintentar", "/api/tiktok/retry");
+    if (it.status === "programado") act("Cancelar", "/api/tiktok/remove", "danger");
+    else if (!["subiendo", "procesando"].includes(it.status)) act("Quitar", "/api/tiktok/remove");
+    if (it.error) { const p = document.createElement("div"); p.className = "tk-err"; p.textContent = it.error; row.append(p); }
+    el.append(row);
+  }
+  // Refresco: rápido mientras algo se sube o está por salir; lento si no.
+  const soon = items.some((x) => ["subiendo", "procesando"].includes(x.status) || (x.status === "programado" && x.at - Date.now() < 60000));
+  drawTkQueue.t = setTimeout(() => drawTkQueue(el), soon ? 3000 : 30000);
+}
+
+async function tiktokDialog(v) {
+  let s;
+  try { s = await api("/api/tiktok/status"); } catch (e) { return toast(e.message, true); }
+  if (!s.linked) { closeModal(); go("reel"); setTimeout(() => $("#tkBox")?.scrollIntoView({ behavior: "smooth" }), 300); return toast("Primero vincula tu cuenta de TikTok", true); }
+  const pad = (n) => String(n).padStart(2, "0");
+  const local = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const def = new Date(Date.now() + 3600000); def.setMinutes(0, 0, 0);
+  const dlg = document.createElement("dialog"); dlg.className = "lyr-dlg"; dlg.style.width = "min(520px, 92vw)";
+  dlg.innerHTML = `<div class="ly-head"><span class="ic">📤</span><div><h3>Enviar a TikTok</h3><span class="hint"></span></div></div>
+    <div class="tk-when">
+      ${v.experimental ? '<div class="warn">Este video tiene música experimental sin licencia: TikTok puede silenciarlo o bajarlo.</div>' : ""}
+      ${v.w > v.h ? '<div class="warn">Este video es horizontal: en TikTok se verá con franjas negras.</div>' : ""}
+      <label class="check"><input type="radio" name="tkWhen" value="now" checked /> Ahora</label>
+      <label class="check"><input type="radio" name="tkWhen" value="later" /> Programar para <input type="datetime-local" id="tkAt" /></label>
+      <p class="hint">Llega como borrador a la bandeja de tu app de TikTok (notificación «tienes un video para editar»). Desde ahí eliges portada, texto, hashtags y publicas.</p>
+    </div>
+    <div class="ly-head ly-foot"><button class="btn" id="tkNo">Cancelar</button><button class="btn primary" id="tkGo">Enviar</button></div>`;
+  $(".ly-head .hint", dlg).textContent = `${v.name} → ${s.user?.name || "tu cuenta"}`;
+  const at = $("#tkAt", dlg); at.value = local(def); at.min = local(new Date());
+  at.onfocus = () => { $('input[value="later"]', dlg).checked = true; };
+  const sync = () => { $("#tkGo", dlg).textContent = $('input[value="later"]', dlg).checked ? "Programar" : "Enviar ahora"; };
+  $$('input[name="tkWhen"]', dlg).forEach((r) => (r.onchange = sync)); at.oninput = sync; sync();
+  document.body.append(dlg);
+  $("#tkNo", dlg).onclick = () => dlg.close();
+  dlg.onclose = () => dlg.remove();
+  $("#tkGo", dlg).onclick = async () => {
+    const later = $('input[value="later"]', dlg).checked;
+    const when = later ? new Date(at.value).getTime() : null;
+    if (later && !(when > Date.now())) return toast("Elige una fecha y hora futura", true);
+    const b = $("#tkGo", dlg); b.disabled = true; b.textContent = "Enviando…";
+    try {
+      await api("/api/tiktok/schedule", { video: v.path, name: v.name, client: v.client, at: when });
+      dlg.close();
+      toast(later ? `Programado para el ${tkDate(when)}` : "Subiendo a TikTok… lo verás en Reels → Publicar en TikTok");
+      drawTkQueue($("#tkQueue"));
+    } catch (e) { toast(e.message, true); b.disabled = false; sync(); }
+  };
+  dlg.showModal();
+}
 
 // ===================== Eliminar videos (a la papelera) =====================
 function confirmDelete(videos, onDone) {
