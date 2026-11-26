@@ -412,7 +412,7 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 
 .ck i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--faint); flex: none; margin-top: 1px; display: grid; place-items: center; font-style: normal; font-size: 10px; color: #04140d; }
 .ck.ok i { background: var(--ok); border-color: var(--ok); }
 .ck b { display: block; font-size: 13px; font-weight: 600; }
-.ck small { color: var(--dim); font-size: 11px; }
+.ck small { display: block; color: var(--dim); font-size: 11px; }
 .ck button { margin-top: 4px; }
 .tabs2 { display: flex; gap: 4px; margin: 22px 0 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 4px; width: fit-content; max-width: 100%; overflow-x: auto; }
 .tabs2 button { background: none; border: 0; color: var(--dim); padding: 9px 16px; border-radius: var(--r-md); cursor: pointer; font-weight: 500; display: flex; gap: 8px; align-items: center; white-space: nowrap; font-family: var(--font-head); }
@@ -651,6 +651,33 @@ dialog.lyr-dlg .ly-foot { flex: none; border-top: 1px solid var(--line); border-
 .vcard.sel .chk { background: var(--accent); border-color: var(--accent); }
 .vcard.sel .chk::after { content: "✓"; color: #fff; display: grid; place-items: center; height: 100%; font-size: 14px; font-weight: 700; }
 .delist { margin: 0 0 12px; padding-left: 18px; color: var(--ink); font-size: 13px; line-height: 1.7; }
+
+.fhead { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
+.fhead .grow { flex: 1; min-width: 200px; }
+.fhead h1 { font-size: 28px; }
+.fhead-actions { display: flex; gap: 8px; align-items: center; }
+.logo-box.sm { width: 64px; height: 64px; border-radius: 16px; font-size: 22px; }
+.menu.right { left: auto; right: 0; min-width: 220px; }
+.menu .dangerline { color: #ffb3b0; }
+.okcard { display: flex; align-items: center; gap: 12px; background: rgba(0, 229, 153, .08); border-color: rgba(0, 229, 153, .35); }
+.okcard b { color: var(--ok); }
+.kv { margin: 0; display: grid; gap: 8px; }
+.kv > div { display: grid; grid-template-columns: 170px 1fr; gap: 12px; padding: 8px 10px; background: var(--bg); border-radius: 8px; }
+.kv dt { color: var(--dim); font-size: 12px; }
+.kv dd { margin: 0; white-space: pre-wrap; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid .full { grid-column: 1 / -1; }
+.field small { color: var(--faint); font-weight: 400; margin-left: 6px; }
+.dangerzone { border-color: rgba(255, 94, 98, .25); }
+.dz-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+.dz-row:first-of-type { border-top: 0; }
+.dz-row b { display: block; font-size: 14px; }
+.dz-row small { display: block; color: var(--dim); font-size: 12px; margin-top: 3px; max-width: 440px; }
+.cc-wrap { display: grid; gap: 8px; }
+.cc-actions { display: flex; gap: 6px; }
+.cc-actions .btn { flex: 1; padding: 7px 8px; font-size: 12px; }
+p.warn { color: var(--warn); margin: 0 0 10px; }
+@media (max-width: 900px) { .form-grid { grid-template-columns: 1fr; } .kv > div { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -2046,14 +2073,21 @@ async function renderClientsList() {
   if (!state.videos.length) await loadVideos().catch(() => {});
   const g = $("#clGrid");
   if (!state.clients.length) g.innerHTML = '<p class="hint">Crea tu primer cliente con el formulario de arriba y suelta su carpeta de imágenes.</p>';
-  for (const c of state.clients) g.append(await clientCard(c));
+  for (const c of state.clients) {
+    const w = document.createElement("div"); w.className = "cc-wrap";
+    w.append(await clientCard(c));
+    w.insertAdjacentHTML("beforeend", '<div class="cc-actions"><button class="btn" data-a="open">Abrir</button><button class="btn" data-a="rename">Renombrar</button><button class="btn danger" data-a="delete">Eliminar</button></div>');
+    w.querySelector(".cc-actions").onclick = (e) => { const a = e.target.closest("button")?.dataset.a; if (a === "open") openClient(c); else if (a === "rename") renameClientDialog(c); else if (a === "delete") deleteClientDialog(c); };
+    g.append(w);
+  }
 }
 
 // ===================== Ficha del cliente =====================
 const SUGGESTED = ["shots", "items", "recorridos", "logo", "clips"];
-state.fichaTab = "contenido";
+state.fichaTab = "resumen";
 async function openClient(name, opts = {}) {
   setClient(name);
+  history.replaceState(null, "", "#/cliente/" + enc(name));
   if (opts.tab) state.fichaTab = opts.tab;
   state.ficha = opts;
   if (state.tab !== "cliente") { state.tab = "cliente"; return go("cliente"); }
@@ -2063,66 +2097,46 @@ async function openClient(name, opts = {}) {
 async function renderFicha(name) {
   const v = $("#v-cliente");
   if (!name) { v.innerHTML = '<div class="empty">Elige un cliente en el menú de la izquierda o crea uno en Clientes.</div>'; return; }
-  const [info] = await Promise.all([clientInfo(name, true), loadVideos().catch(() => [])]);
-  const site = info.site, c = site?.colors ?? {};
+  const [info, prof] = await Promise.all([clientInfo(name, true), api("/api/clients/profile?name=" + enc(name)).catch(() => ({ profile: {} })), loadVideos().catch(() => [])]);
+  const site = info.site, profile = prof.profile ?? {};
   const myVids = state.videos.filter((x) => x.client === name);
-  const myRuns = state.runs.filter((r) => r.client === name && isActive(r));
   const songs = clientTracks(name);
   const logo = (info.slots.logo ?? [])[0];
-  const checks = [
-    { ok: info.count >= 3, t: `${info.count} imágenes y clips en ${info.folders} carpeta${info.folders === 1 ? "" : "s"}`, s: info.count >= 3 ? "Listo para montar" : "Sube al menos 3 para un video con ritmo" },
-    { ok: !!logo, t: logo ? "Logo cargado" : "Sin logo", s: logo ? logo : "Súbelo a la carpeta logo/ (PNG con transparencia)" },
-    { ok: !!site, t: site ? `Web analizada: ${site.host}` : "Web sin analizar", s: site ? "Colores, tipografías y titulares guardados" : "Importa la web para usar su marca", act: site ? null : ["Importar web", "web"] },
-    { ok: songs.length > 0, t: songs.length ? `${songs.length} canción${songs.length === 1 ? "" : "es"} de marca` : "Sin música de marca", s: songs.length ? "Con beats exactos para los cortes" : "Compón una con IA a partir de su web", act: songs.length ? null : ["Crear música", "musica"] },
-  ];
-  const done = checks.filter((x) => x.ok).length;
   v.innerHTML = `
-    <div class="hero2">
-      <div class="logo-box" id="fLogo"></div>
-      <div><span class="eyebrow">Cliente</span><h1 id="fName"></h1>
-        <div class="tags" id="fTags"></div>
-        <div class="meta-line" id="fMeta"></div></div>
-      <div class="hero-side"><div class="kpis"><div><b>${myVids.length}</b><span>Videos listos</span></div><div><b>${myRuns.length}</b><span>En cola</span></div></div>
-        <button class="cta-big" id="fCreate">⚡ Crear video para este cliente</button></div>
-    </div>
-    <div class="two">
-      <section class="card2"><div class="wz-card-h"><h3>Listo para crear</h3><span class="chip ${done === 4 ? "ok" : "on"}">${done}/4</span></div>
-        <div class="progress"><div style="width:${done * 25}%"></div></div>
-        <div class="checklist" id="fCheck"></div></section>
-      <section class="card2"><div class="wz-card-h"><h3>Cola de procesamiento</h3></div><div class="runs runs-box" id="fRuns"></div><button class="linkbtn" id="fMonitor">Ver monitor completo →</button></section>
+    <div class="fhead">
+      <div class="logo-box sm" id="fLogo"></div>
+      <div class="grow"><span class="eyebrow">Cliente</span><h1 id="fName"></h1><div class="tags" id="fTags"></div></div>
+      <div class="fhead-actions">
+        <button class="btn primary" id="fReel">🎬 Crear reel</button>
+        <button class="btn" id="fVideo">🎞️ Video con IA</button>
+        <div class="dropmenu"><button class="btn" id="fMore" aria-label="Más acciones">⋯</button>
+          <div class="menu right" hidden id="fMoreMenu"><button data-a="rename">✎ Renombrar</button><button data-a="data">📝 Editar sus datos</button><button data-a="delete" class="dangerline">🗑 Eliminar cliente…</button></div></div>
+      </div>
     </div>
     <div class="tabs2" id="fTabs"></div>
     <div id="fBody"></div>`;
   const lg = $("#fLogo");
   if (logo) lg.style.backgroundImage = `url("${mediaUrl(name, "logo", logo)}")`; else lg.textContent = initials(name);
-  $("#fName").textContent = name;
+  $("#fName").textContent = profile.brand || name;
   const tags = $("#fTags");
+  if (profile.brand && profile.brand !== name) tags.insertAdjacentHTML("beforeend", `<span class="chip">${esc(name)}</span>`);
+  if (profile.industry) tags.insertAdjacentHTML("beforeend", `<span class="chip">${esc(profile.industry)}</span>`);
   if (site) tags.insertAdjacentHTML("beforeend", `<span class="chip on">${esc(site.host)}</span>`);
-  if (site?.title) tags.insertAdjacentHTML("beforeend", `<span class="chip">${esc(site.title.slice(0, 40))}</span>`);
-  if (!tags.children.length) tags.innerHTML = '<span class="chip">Sin web importada</span>';
-  const meta = $("#fMeta");
-  if (site) meta.insertAdjacentHTML("beforeend", `<a class="linkbtn" target="_blank" rel="noopener" href="${esc(site.url)}">${esc(site.host)}</a>`);
-  if (site?.description) meta.insertAdjacentHTML("beforeend", `<span>${esc(site.description.slice(0, 110))}</span>`);
-  const sw = [...(c.accents ?? []), c.background, c.ink].filter(Boolean);
-  if (sw.length) meta.insertAdjacentHTML("beforeend", `<span class="swatch2"><small class="eyebrow">ADN visual</small>${sw.slice(0, 5).map((h) => `<i title="${esc(h)}" style="background:${esc(h)}"></i>`).join("")}</span>`);
-  if (site?.fonts) meta.insertAdjacentHTML("beforeend", `<span>${esc([site.fonts.heading, site.fonts.body].filter(Boolean).join(" · "))}</span>`);
-  $("#fCreate").onclick = () => { setClient(name); go("crear"); };
-  const ck = $("#fCheck");
-  for (const x of checks) {
-    const d = document.createElement("div"); d.className = "ck" + (x.ok ? " ok" : "");
-    d.innerHTML = `<i>${x.ok ? "✓" : ""}</i><div><b></b><small></small></div>`; $("b", d).textContent = x.t; $("small", d).textContent = x.s;
-    if (x.act) { const b = document.createElement("button"); b.className = "btn"; b.textContent = x.act[0]; b.onclick = () => (x.act[1] === "web" ? fichaTab("web") : (go("musica"), setTimeout(() => $("#gaClient") && ($("#gaClient").value = name), 50))); $("div", d).append(b); }
-    ck.append(d);
-  }
-  $("#fMonitor").onclick = () => { $("#procDrawer").hidden = false; drawRuns(); };
-  drawRuns();
-  const tabs = [["contenido", "Contenido", info.count], ["web", "Web importada", site ? "✓" : ""], ["videos", "Videos generados", myVids.length], ["musica", "Música de marca", songs.length]];
+  $("#fReel").onclick = () => { setClient(name); go("reel"); };
+  $("#fVideo").onclick = () => { setClient(name); go("crear"); };
+  $("#fMore").onclick = (e) => { e.stopPropagation(); const m = $("#fMoreMenu"); const open = !m.hidden; closeMenus(); m.hidden = open; };
+  $("#fMoreMenu").onclick = (e) => {
+    const a = e.target.closest("button")?.dataset.a; if (!a) return; closeMenus();
+    if (a === "rename") renameClientDialog(name); else if (a === "delete") deleteClientDialog(name); else fichaTab("datos");
+  };
+  const tabs = [["resumen", "Resumen", ""], ["contenido", "Contenido", info.count], ["web", "Web", site ? "✓" : ""], ["videos", "Videos", myVids.length], ["musica", "Música", songs.length], ["datos", "Datos", ""]];
   const tb = $("#fTabs");
   for (const [id, label, n] of tabs) {
     const b = document.createElement("button"); b.dataset.t = id; b.className = state.fichaTab === id ? "on" : "";
     b.innerHTML = `<span>${label}</span>${n !== "" && n !== 0 ? `<span class="n">${n}</span>` : ""}`; b.onclick = () => fichaTab(id); tb.append(b);
   }
-  state.fichaData = { name, info, myVids, songs };
+  if (!tabs.some(([id]) => id === state.fichaTab)) state.fichaTab = "resumen";
+  state.fichaData = { name, info, myVids, songs, profile, site };
   fichaTab(state.fichaTab, true);
 }
 function fichaTab(id, noPush) {
@@ -2130,12 +2144,77 @@ function fichaTab(id, noPush) {
   $$("#fTabs button").forEach((b) => b.classList.toggle("on", b.dataset.t === id));
   const { name, info, myVids, songs } = state.fichaData;
   const body = $("#fBody"); body.innerHTML = "";
-  if (id === "contenido") fichaContent(body, name, info, songs);
+  if (id === "resumen") fichaResumen(body);
+  else if (id === "contenido") fichaContent(body, name, info, songs);
   else if (id === "web") fichaWeb(body, name, info);
+  else if (id === "datos") fichaDatos(body);
   else if (id === "videos") {
-    if (!myVids.length) body.innerHTML = '<div class="vempty"><b>Aún no hay videos de este cliente</b>Pulsa «Crear video para este cliente».</div>';
+    if (!myVids.length) body.innerHTML = '<div class="vempty"><b>Aún no hay videos de este cliente</b>Crea uno con «🎬 Crear reel» o «🎞️ Video con IA».</div>';
     else { const g = document.createElement("div"); g.className = "grid"; myVids.forEach((x, i) => g.append(videoCard(x, () => openModal(myVids, i)))); body.append(g); }
   } else fichaMusic(body, name, songs);
+}
+
+// Resumen: lo que falta para crear, lo que está en marcha y lo último hecho. Nada más.
+function fichaResumen(body) {
+  const { name, info, myVids, songs, profile, site } = state.fichaData;
+  const logo = (info.slots.logo ?? [])[0];
+  const checks = [
+    { ok: info.count >= 3, t: `${info.count} imágenes y clips`, s: info.count >= 3 ? "Listo para montar videos" : "Sube al menos 3 para un video con ritmo", act: info.count >= 3 ? null : ["Subir contenido", "contenido"] },
+    { ok: !!logo, t: logo ? "Logo cargado" : "Sin logo", s: logo ? "Se usa en el cierre de los videos" : "Súbelo a la carpeta logo/ (PNG con transparencia)", act: logo ? null : ["Subir logo", "contenido"] },
+    { ok: !!site, t: site ? `Web analizada: ${site.host}` : "Web sin analizar", s: site ? "Colores, tipografías y titulares guardados" : "Importa la web para usar su marca", act: site ? null : ["Importar web", "web"] },
+    { ok: songs.length > 0, t: songs.length ? `${songs.length} canción${songs.length === 1 ? "" : "es"} de marca` : "Sin música de marca", s: songs.length ? "Con beats exactos para los cortes" : "Compón una con IA a partir de su web", act: songs.length ? null : ["Crear música", "musica"] },
+  ];
+  const done = checks.filter((x) => x.ok).length;
+  const running = state.runs.filter((r) => r.client === name && isActive(r));
+  body.innerHTML = `
+    ${done < 4 ? `<section class="card2"><div class="wz-card-h"><h3>Para dejarlo listo</h3><span class="chip on">${done} de 4</span></div><div class="progress"><div style="width:${done * 25}%"></div></div><div class="checklist" id="fCheck"></div></section>` : '<section class="card2 okcard"><b>✓ Todo listo para crear</b><span class="hint">Contenido, logo, web y música de marca.</span></section>'}
+    ${running.length ? '<section class="card2" style="margin-top:16px"><div class="wz-card-h"><h3>En proceso</h3></div><div class="runs runs-box" id="fRuns"></div></section>' : ""}
+    ${profile.brand || profile.industry || profile.cta || profile.notes ? `<section class="card2" style="margin-top:16px"><div class="wz-card-h"><h3>Datos</h3><button class="linkbtn" id="fEditData">Editar</button></div><dl class="kv">${[["Marca", profile.brand], ["Rubro", profile.industry], ["Llamada a la acción", profile.cta], ["Notas de estilo", profile.notes]].filter(([, x]) => x).map(([k, x]) => `<div><dt>${k}</dt><dd>${esc(x)}</dd></div>`).join("")}</dl></section>` : ""}
+    <div class="page-h" style="margin:22px 0 12px"><h2 class="sec-t">Últimos videos</h2><span class="grow"></span>${myVids.length > 6 ? '<button class="linkbtn" id="fAllVids">Ver todos →</button>' : ""}</div>
+    <div class="strip2" id="fLast"></div>`;
+  const ck = $("#fCheck");
+  for (const x of ck ? checks : []) {
+    const d = document.createElement("div"); d.className = "ck" + (x.ok ? " ok" : "");
+    d.innerHTML = `<i>${x.ok ? "✓" : ""}</i><div><b></b><small></small></div>`; $("b", d).textContent = x.t; $("small", d).textContent = x.s;
+    if (x.act) { const b = document.createElement("button"); b.className = "btn"; b.textContent = x.act[0]; b.onclick = () => (x.act[1] === "musica" ? (go("musica"), setTimeout(() => $("#gaClient") && ($("#gaClient").value = name), 60)) : fichaTab(x.act[1])); $("div", d).append(b); }
+    ck.append(d);
+  }
+  $("#fEditData")?.addEventListener("click", () => fichaTab("datos"));
+  $("#fAllVids")?.addEventListener("click", () => fichaTab("videos"));
+  const last = $("#fLast");
+  if (!myVids.length) last.innerHTML = '<p class="hint">Todavía no hay videos de este cliente.</p>';
+  myVids.slice(0, 6).forEach((x, i) => last.append(videoCard(x, () => openModal(myVids, i))));
+  drawRuns();
+}
+
+// Datos del cliente: un formulario corto. Lo que se guarda aquí es el valor inicial al crear videos y música.
+function fichaDatos(body) {
+  const { name, profile } = state.fichaData;
+  body.innerHTML = `<form class="card2" id="pfForm"><div class="wz-card-h"><h3>Datos del cliente</h3></div>
+      <p class="hint" style="margin:0 0 14px">Lo que escribas aquí se usa como valor inicial al crear videos y música de este cliente.</p>
+      <div class="form-grid">
+        <label class="field">Marca <small>cómo se escribe en los videos</small><input id="pfBrand" placeholder="${esc(name)}" /></label>
+        <label class="field">Rubro o giro <small>ayuda a Claude a elegir el tono</small><input id="pfIndustry" placeholder="Ej.: pollería, spa, tienda de ropa" /></label>
+        <label class="field">Dirección web<input id="pfWeb" placeholder="https://…" /></label>
+        <label class="field">Llamada a la acción habitual<input id="pfCta" placeholder="Pide ahora · tienda.com" /></label>
+        <label class="field full">Notas de estilo para Claude<textarea id="pfNotes" rows="3" placeholder="Ej.: colores rojo y amarillo, tono familiar, destacar la parrilla"></textarea></label>
+      </div>
+      <div class="row" style="margin:14px 0 0"><button class="btn primary">Guardar datos</button><span class="hint" id="pfOk"></span></div></form>
+    <section class="card2 dangerzone" style="margin-top:16px"><div class="wz-card-h"><h3>Nombre y eliminación</h3></div>
+      <div class="dz-row"><div><b>Nombre del cliente: <code>${esc(name)}</code></b><small>Es el nombre de su carpeta. Al cambiarlo se renombran también sus videos, proyectos y canciones.</small></div><button class="btn" id="pfRename" type="button">✎ Renombrar</button></div>
+      <div class="dz-row"><div><b>Eliminar este cliente</b><small>Se mueve a la papelera de macOS: puedes recuperarlo. Antes verás qué contiene.</small></div><button class="btn danger" id="pfDel" type="button">🗑 Eliminar…</button></div></section>`;
+  const set = { pfBrand: profile.brand, pfIndustry: profile.industry, pfWeb: profile.web, pfCta: profile.cta, pfNotes: profile.notes };
+  for (const [id, val] of Object.entries(set)) $("#" + id).value = val ?? "";
+  $("#pfForm").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api("/api/clients/profile", { name, brand: $("#pfBrand").value, industry: $("#pfIndustry").value, web: $("#pfWeb").value, cta: $("#pfCta").value, notes: $("#pfNotes").value });
+      state.fichaData.profile = r.profile; $("#pfOk").textContent = "✓ Guardado"; setTimeout(() => ($("#pfOk") && ($("#pfOk").textContent = "")), 2500);
+      $("#fName").textContent = r.profile.brand || name;
+    } catch (err) { toast(err.message, true); }
+  };
+  $("#pfRename").onclick = () => renameClientDialog(name);
+  $("#pfDel").onclick = () => deleteClientDialog(name);
 }
 
 function fichaMusic(body, name, songs) {
@@ -2167,6 +2246,7 @@ function fichaWeb(body, name, info) {
     <div id="siteProg" hidden><div class="progress"><div id="siteBar"></div></div><b class="hint" id="sitePhase"></b></div>
     <div id="siteInfo"></div></section>`;
   bindSite(name, site);
+  if (!site) { const u = state.fichaData?.profile?.web; if (u && !$("#siteUrl").value) $("#siteUrl").value = u; }
 }
 
 function fichaContent(body, name, info, songs) {
@@ -2268,7 +2348,7 @@ function initWizard() {
   $("#wzNext").onclick = () => (wz.step === 4 ? generate() : showStep(wz.step + 1));
   $("#planBtn").onclick = () => planNow(true);
   $("#addSources").onclick = () => { if (state.client) openClient(state.client); };
-  ["hook", "extra", "brand", "cta", "notes", "videoName"].forEach((id) => ($("#" + id).oninput = () => updateSummary()));
+  ["hook", "extra", "brand", "cta", "notes", "videoName"].forEach((id) => ($("#" + id).oninput = () => { delete $("#" + id).dataset.auto; updateSummary(); }));
   $("#phonePlay").onclick = phonePreview;
   jobFields();
 }
@@ -2316,6 +2396,12 @@ function wizClientChanged() {
   state.client = name;
   $$(".client-pick").forEach((b, i) => b.classList.toggle("on", b.querySelector("b").textContent === name));
   $("#brand").placeholder = name[0].toUpperCase() + name.slice(1);
+  api("/api/clients/profile?name=" + enc(name)).then(({ profile: p }) => {
+    // valor inicial desde los datos del cliente; lo que ya escribiste tú no se pisa
+    const fill = (id, val) => { const el = $("#" + id); if (!el) return; if (!el.value || el.dataset.auto) { el.value = val || ""; if (val) el.dataset.auto = "1"; else delete el.dataset.auto; } };
+    fill("brand", p.brand); fill("cta", p.cta); fill("notes", p.notes);
+    updateSummary();
+  }).catch(() => {});
   clientInfo(name).then((i) => {
     const site = i.site;
     $("#clientNote").textContent = i.count ? `${i.count} archivos en ${i.folders} carpeta${i.folders === 1 ? "" : "s"}${site ? ` · web ${site.host}` : ""}.` : "Este cliente no tiene imágenes todavía: súbelas en su ficha.";
@@ -2638,7 +2724,8 @@ function lyricsDialog(client, source, opts = {}) {
       </div>
       <div class="row" style="margin:0"><label class="field grow">La canción está en<select id="lyLang"><option value="auto">Detectar</option><option value="es">Español</option><option value="en">Inglés</option></select></label>
         <label class="field grow">Destino<select id="lyFmt">${nets}</select></label></div>
-      <div class="durbox"><div class="row" style="margin:0;align-items:flex-end"><label class="field">Duración exacta (s)<input type="number" id="lyDur" min="3" step="0.5" style="width:110px" /></label><label class="field">Empieza en el segundo<input type="number" id="lyFrom" min="0" step="0.5" value="0" style="width:110px" /></label><div class="chips" id="lyChips"></div></div>
+      <div class="durbox"><div class="row" style="margin:0;align-items:flex-end"><label class="field">Duración exacta (s)<input type="number" id="lyDur" min="3" step="0.5" style="width:110px" /></label><label class="field">Empieza en el segundo<input type="number" id="lyFrom" min="0" step="0.5" value="0" style="width:110px" /></label><label class="field">Calidad<select id="lyQ"><option value="draft">Borrador (rápido)</option><option value="looks" selected>Normal</option><option value="delivery">Final (lenta)</option></select></label></div>
+        <div class="chips" id="lyChips" style="margin-top:10px"></div>
         <p class="hint" id="lyDurInfo" style="margin:8px 0 0"></p></div>
       <p class="hint" id="lyEff" style="margin-top:12px"></p>
       <p class="hint">Si hay menos de 3 palabras reconocibles, la factory lo avisa en vez de inventar texto. Revisa los subtítulos antes de publicar.</p>
@@ -2684,23 +2771,30 @@ function lyricsDialog(client, source, opts = {}) {
   $("#lyFont", dlg).onchange = (e) => { S.font = e.target.value; paint(); };
   $("#lyPos", dlg).onchange = (e) => { S.pos = e.target.value; paint(); };
   $("#lyFmt", dlg).value = localGet("factory.format") || "instagram-reels";
-  // Duración exacta: tope de la red elegida y de lo que queda de video desde el inicio.
-  let vdur = 0;
+  // Duración exacta. El tope es lo que queda de video; la red solo avisa si te pasas de lo que acepta.
+  let vdur = 0, full = false;
   const platform = () => state.platforms.find((x) => x.id === $("#lyFmt", dlg).value);
-  const fmtT = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
-  const maxDur = () => { const p = platform(), from = Math.max(0, Number($("#lyFrom", dlg).value) || 0); return Math.max(3, Math.floor(Math.min(p?.max ?? 90, vdur ? vdur - from : 90) * 2) / 2); };
+  const fmtT = (t) => { const m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(1).padStart(4, "0")}`; };
+  const maxDur = () => { const from = Math.max(0, Number($("#lyFrom", dlg).value) || 0); return Math.max(3, Math.floor(Math.min(1800, vdur ? vdur - from : 90) * 2) / 2); };
   const syncDur = (reset) => {
-    const el = $("#lyDur", dlg), max = maxDur(), p = platform();
-    el.max = max; if (reset || !el.value || Number(el.value) > max) el.value = max;
+    const el = $("#lyDur", dlg), max = maxDur(), p = platform(), pmax = p?.max ?? 90;
+    el.max = max;
+    if (reset) { full = false; el.value = Math.min(pmax, max); }
+    else if (!el.value || Number(el.value) > max) el.value = max;
     const d = Number(el.value), from = Number($("#lyFrom", dlg).value) || 0;
-    const presets = [15, 20, 30, 45, 60, 90].filter((x) => x < max);
-    $("#lyChips", dlg).innerHTML = [...presets, max].map((x) => `<button type="button" class="pillbtn${Math.abs(x - d) < 0.01 ? " on" : ""}" data-d="${x}">${x === max ? `Máx. ${x} s` : `${x} s`}</button>`).join("");
-    $$("#lyChips button", dlg).forEach((b) => (b.onclick = () => { el.value = b.dataset.d; syncDur(); }));
-    $("#lyDurInfo", dlg).textContent = `${p ? `${p.network} ${p.label}: hasta ${p.max} s. ` : ""}${vdur ? `El video dura ${vdur.toFixed(1)} s. ` : ""}El reel irá de ${fmtT(from)} a ${fmtT(from + d)}.`;
+    const chips = [15, 30, 60, 90].filter((x) => x < Math.min(pmax, max)).map((x) => [x, `${x} s`, false]);
+    if (pmax < max) chips.push([pmax, `Máx. ${p.network} ${pmax} s`, false]);
+    chips.push([max, `🎞 Video completo${vdur ? ` (${fmtT(max)})` : ""}`, true]);
+    $("#lyChips", dlg).innerHTML = chips.map(([x, label, isFull]) => `<button type="button" class="pillbtn${(isFull ? full : !full && Math.abs(x - d) < 0.01) ? " on" : ""}" data-d="${x}" data-f="${isFull ? 1 : 0}">${label}</button>`).join("");
+    $$("#lyChips button", dlg).forEach((btn) => (btn.onclick = () => { el.value = btn.dataset.d; full = btn.dataset.f === "1"; syncDur(); }));
+    const over = d > pmax + 0.01;
+    $("#lyDurInfo", dlg).innerHTML = `${vdur ? `El video dura ${fmtT(vdur)}. ` : ""}El reel irá de ${fmtT(from)} a ${fmtT(from + d)}.${over ? ` <b style="color:var(--warn)">⚠ Pasa del máximo de ${p.network} ${p.label} (${pmax} s): lo creamos igual, pero esa red no lo aceptará en ese formato.</b>` : ""}${d > 120 ? ` <b>Es largo: el render puede tardar bastante (calcula entre 4 y 8 s por cada segundo de video). «Borrador» va más rápido.</b>` : ""}`;
+    const q = $("#lyQ", dlg); if (d > 180 && !q.dataset.touched) q.value = "draft";
   };
   live.onloadedmetadata = () => { vdur = live.duration || 0; syncDur(true); };
   live.ontimeupdate = () => { const from = Number($("#lyFrom", dlg).value) || 0, d = Number($("#lyDur", dlg).value) || 0; if (d && live.currentTime >= from + d) live.currentTime = from; };
-  $("#lyDur", dlg).oninput = () => { const max = maxDur(); if (Number($("#lyDur", dlg).value) > max) $("#lyDur", dlg).value = max; syncDur(); };
+  $("#lyDur", dlg).oninput = () => { full = false; const max = maxDur(); if (Number($("#lyDur", dlg).value) > max) $("#lyDur", dlg).value = max; syncDur(); };
+  $("#lyQ", dlg).onchange = () => ($("#lyQ", dlg).dataset.touched = "1");
   $("#lyFrom", dlg).oninput = () => { syncDur(); live.currentTime = Number($("#lyFrom", dlg).value) || 0; };
   const res = () => { const p = platform(); $("#lyRes", dlg).textContent = p ? `${p.w}×${p.h}` : ""; syncDur(true); };
   $("#lyFmt", dlg).onchange = res; res(); paint();
@@ -2709,7 +2803,7 @@ function lyricsDialog(client, source, opts = {}) {
   $("#lyNo", dlg).onclick = $("#lyX", dlg).onclick = close;
   dlg.onclose = () => dlg.remove();
   $("#lyGo", dlg).onclick = async () => {
-    const b = { client, source, name: opts.name ?? `reel-${slug(String(opts.label ?? source).replace(/\.mp4$/i, ""))}`.slice(0, 50), fromOutput: !!opts.fromOutput, style: S.style, accent: S.color, show: S.show, font: S.font, position: S.pos, language: $("#lyLang", dlg).value, format: $("#lyFmt", dlg).value, from: Number($("#lyFrom", dlg).value) || 0, duration: Number($("#lyDur", dlg).value) || null };
+    const b = { client, source, name: opts.name ?? `reel-${slug(String(opts.label ?? source).replace(/\.mp4$/i, ""))}`.slice(0, 50), fromOutput: !!opts.fromOutput, style: S.style, accent: S.color, show: S.show, font: S.font, position: S.pos, language: $("#lyLang", dlg).value, format: $("#lyFmt", dlg).value, from: Number($("#lyFrom", dlg).value) || 0, duration: Number($("#lyDur", dlg).value) || null, full, quality: $("#lyQ", dlg).value };
     try { const { id } = await api("/api/lyrics", b); dlg.close(); pollRuns(); if (opts.onStarted) opts.onStarted(id); else bgRun(id, "Subtítulos del video"); } catch (e) { toast(e.message, true); }
   };
   dlg.showModal();
@@ -2809,6 +2903,74 @@ function updateSelBar() {
   $("#selN").textContent = n ? `${n} seleccionado${n === 1 ? "" : "s"}` : "Toca los videos que quieras quitar";
   $("#selDel").disabled = !n;
   $("#vSelBtn").textContent = state.vSelMode ? "✕ Salir de selección" : "☑ Seleccionar";
+}
+
+
+// ===================== Renombrar y eliminar clientes =====================
+function clientsChanged(resp, oldName, newName) {
+  if (resp?.clients) state.clients = resp.clients;
+  cinfo.clear();
+  if (state.client === oldName) {
+    state.client = newName ?? null;
+    if (newName) localSet("factory.client", newName); else localSet("factory.client", "");
+  }
+  if (wz.inited) { wz.folders = []; wz.folderClient = null; wz.plan = null; jobFields(); }
+  renderClientChrome();
+}
+function miniDialog(html) {
+  const dlg = document.createElement("dialog"); dlg.className = "lyr-dlg"; dlg.style.width = "min(540px, 92vw)";
+  dlg.innerHTML = html; document.body.append(dlg);
+  dlg.onclose = () => dlg.remove();
+  return dlg;
+}
+function renameClientDialog(name) {
+  const dlg = miniDialog(`<div class="ly-head"><span class="ic">✎</span><div><h3>Renombrar cliente</h3><span class="hint">Actual: <b>${esc(name)}</b></span></div></div>
+    <div style="padding:16px 22px"><label class="field">Nuevo nombre<input id="rnName" value="${esc(name)}" autocomplete="off" /></label>
+      <p class="hint" id="rnInfo" style="margin:10px 0 0"></p>
+      <p class="hint" style="margin:8px 0 0">Se renombran su carpeta, sus videos, sus proyectos y las canciones que lleven su nombre.</p></div>
+    <div class="ly-head ly-foot"><button class="btn" id="rnNo">Cancelar</button><button class="btn primary" id="rnGo">Renombrar</button></div>`);
+  const inp = $("#rnName", dlg), info = $("#rnInfo", dlg);
+  const show = () => { const n = slug(inp.value); info.textContent = !n ? "Escribe un nombre." : n === name ? "Es el mismo nombre." : `Se guardará como «${n}».`; $("#rnGo", dlg).disabled = !n || n === name; };
+  inp.oninput = show; show();
+  $("#rnNo", dlg).onclick = () => dlg.close();
+  const go2 = async () => {
+    const to = slug(inp.value); if (!to || to === name) return;
+    const btn = $("#rnGo", dlg); btn.disabled = true; btn.textContent = "Renombrando…";
+    try {
+      const r = await api("/api/clients/rename", { from: name, to });
+      dlg.close(); clientsChanged(r, name, r.name); toast(`«${name}» ahora se llama «${r.name}»`);
+      if (state.tab === "cliente") { state.fichaTab = state.fichaTab ?? "resumen"; await openClient(r.name); } else go(state.tab);
+    } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = "Renombrar"; }
+  };
+  $("#rnGo", dlg).onclick = go2;
+  inp.onkeydown = (e) => { if (e.key === "Enter") go2(); };
+  dlg.showModal(); inp.select();
+}
+async function deleteClientDialog(name) {
+  const dlg = miniDialog(`<div class="ly-head"><span class="ic" style="background:rgba(255,94,98,.15)">🗑</span><div><h3>Eliminar «${esc(name)}»</h3><span class="hint">Se mueve a la papelera de macOS: puedes recuperarlo.</span></div></div>
+    <div style="padding:16px 22px" id="dcBody"><p class="hint">Revisando qué contiene…</p></div>
+    <div class="ly-head ly-foot"><button class="btn" id="dcNo">Cancelar</button><button class="btn danger" id="dcGo" disabled>Eliminar cliente</button></div>`);
+  $("#dcNo", dlg).onclick = () => dlg.close();
+  dlg.showModal();
+  let i;
+  try { i = await api("/api/clients/info?name=" + enc(name)); } catch (e) { $("#dcBody", dlg).innerHTML = `<p class="hint"></p>`; $("#dcBody p", dlg).textContent = e.message; return; }
+  const mb = (b) => (b >= 1e9 ? `${(b / 1e9).toFixed(1)} GB` : `${Math.max(1, Math.round(b / 1e6))} MB`);
+  const row = (id, label, n, on) => (n ? `<label class="check"><input type="checkbox" id="${id}" ${on ? "checked" : ""} /> ${label} <b>(${n})</b></label>` : "");
+  $("#dcBody", dlg).innerHTML = `${i.busy ? '<p class="warn">Este cliente tiene procesos en marcha. Espera a que terminen para eliminarlo.</p>' : ""}
+    <p style="margin:0 0 10px">Se eliminará <b>su carpeta de contenido</b> (${i.files} archivo${i.files === 1 ? "" : "s"}). Además puedes elegir:</p>
+    ${row("dcVid", "Sus videos terminados", i.videos, true)}${row("dcPro", "Sus proyectos editables", i.projects, true)}${row("dcSong", "Sus canciones (se pueden reutilizar en otros clientes)", i.songs, false)}
+    ${!i.videos && !i.projects && !i.songs ? '<p class="hint">No tiene videos, proyectos ni canciones.</p>' : ""}
+    <p class="hint" style="margin-top:12px">Ocupa unos ${mb(i.bytes)} en total.</p>`;
+  $("#dcGo", dlg).disabled = !!i.busy;
+  $("#dcGo", dlg).onclick = async () => {
+    const btn = $("#dcGo", dlg); btn.disabled = true; btn.textContent = "Eliminando…";
+    try {
+      const r = await api("/api/clients/delete", { name, videos: !!$("#dcVid", dlg)?.checked, projects: !!$("#dcPro", dlg)?.checked, songs: !!$("#dcSong", dlg)?.checked });
+      dlg.close(); clientsChanged(r, name, null);
+      toast(`«${name}» movido a ${r.trash}${r.videos ? ` · ${r.videos} video${r.videos === 1 ? "" : "s"}` : ""}${r.projects ? ` · ${r.projects} proyecto${r.projects === 1 ? "" : "s"}` : ""}${r.songs ? ` · ${r.songs} canción${r.songs === 1 ? "" : "es"}` : ""}`);
+      await load(); go("clientes");
+    } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = "Reintentar"; }
+  };
 }
 
 // Si la interfaz o el servidor cambian, avisa para recargar (evita usar una página vieja sin saberlo).

@@ -190,7 +190,7 @@ function ui() {
         id: `${Date.now().toString(36)}-${name}`, kind: "lyrics", status: "en cola", phase: "En cola", pct: 0, activity: [], createdAt: Date.now(),
         req: { client, name, source, fromOutput, font: LYRIC_FONTS.includes(b.font) ? b.font : null, position: LYRIC_POSITIONS[b.position] ? b.position : "bottom", title: String(b.title ?? name).slice(0, 80), format: PLATFORMS[b.format] ? b.format : "instagram-reels", show: ["both", "es", "en"].includes(b.show) ? b.show : "both",
                language: ["auto", "es", "en"].includes(b.language) ? b.language : "auto", style: LYRIC_STYLES[b.style] ? b.style : "karaoke",
-               accent: /^#[0-9a-f]{6}$/i.test(b.accent ?? "") ? b.accent : null, from: Math.max(0, Number(b.from) || 0), duration: Number(b.duration) || null,
+               accent: /^#[0-9a-f]{6}$/i.test(b.accent ?? "") ? b.accent : null, from: Math.max(0, Number(b.from) || 0), duration: Number(b.duration) || null, full: !!b.full,
                model: ["sonnet", "opus"].includes(b.model) ? b.model : "sonnet", quality: ["draft", "looks", "delivery"].includes(b.quality) ? b.quality : "looks" },
       };
       startRun(g);
@@ -487,6 +487,75 @@ function ui() {
       fs.mkdirSync(path.join(MEDIA, safeName(client)), { recursive: true });
       json(res, { ok: true, name: client, clients: mediaProjects() });
     },
+    // ----- gestionar clientes: qué tiene, datos, renombrar y eliminar -----
+    "GET /api/clients/info": (req, res, q) => {
+      const name = safeName(q.get("name"));
+      if (!fs.existsSync(path.join(MEDIA, name))) return json(res, { error: "ese cliente no existe" }, 404);
+      const media = countFiles(path.join(MEDIA, name), /\.(jpe?g|png|webp|gif|avif|svg|mp4|mov|webm)$/i);
+      const vids = countFiles(path.join(OUTPUT, "ia", name), /\.mp4$/i);
+      const pdir = path.join(ROOT, "projects", name);
+      const projects = fs.existsSync(pdir) ? fs.readdirSync(pdir, { withFileTypes: true }).filter((d) => d.isDirectory()).length : 0;
+      json(res, { name, files: media.n, bytes: media.bytes + vids.bytes, videos: vids.n, projects, songs: clientSongs(name).length, busy: clientBusy(name) });
+    },
+    "GET /api/clients/profile": (req, res, q) => {
+      const name = safeName(q.get("name"));
+      let p = {}; try { p = JSON.parse(fs.readFileSync(path.join(MEDIA, name, "profile.json"), "utf8")); } catch {}
+      json(res, { profile: p });
+    },
+    "POST /api/clients/profile": async (req, res) => {
+      const b = await body(req);
+      const name = safeName(b.name);
+      if (!fs.existsSync(path.join(MEDIA, name))) return json(res, { error: "ese cliente no existe" }, 404);
+      const clip = (v, n) => String(v ?? "").trim().slice(0, n);
+      const profile = { brand: clip(b.brand, 60), industry: clip(b.industry, 80), web: clip(b.web, 200), cta: clip(b.cta, 80), notes: clip(b.notes, 1500) };
+      fs.writeFileSync(path.join(MEDIA, name, "profile.json"), JSON.stringify(profile, null, 2));
+      json(res, { ok: true, profile });
+    },
+    "POST /api/clients/rename": async (req, res) => {
+      const b = await body(req);
+      const from = safeName(b.from), to = slug(String(b.to ?? ""));
+      if (!to || to.startsWith(".")) return json(res, { error: "escribe el nuevo nombre" }, 400);
+      if (from === to) return json(res, { ok: true, name: to });
+      if (!fs.existsSync(path.join(MEDIA, from))) return json(res, { error: "ese cliente no existe" }, 404);
+      if (fs.existsSync(path.join(MEDIA, to))) return json(res, { error: `ya existe un cliente llamado «${to}»` }, 409);
+      if (clientBusy(from)) return json(res, { error: "este cliente tiene procesos en marcha; espera a que terminen" }, 409);
+      const pairs = [[path.join(MEDIA, from), path.join(MEDIA, to)], [path.join(ROOT, "projects", from), path.join(ROOT, "projects", to)], [path.join(OUTPUT, "ia", from), path.join(OUTPUT, "ia", to)]];
+      for (const [a, c] of pairs) if (fs.existsSync(a)) { fs.mkdirSync(path.dirname(c), { recursive: true }); fs.renameSync(a, c); }
+      // datos que apuntaban al nombre viejo: videos terminados, canciones y procesos
+      const outDir = path.join(OUTPUT, "ia", to);
+      if (fs.existsSync(outDir)) for (const f of fs.readdirSync(outDir).filter((x) => x.endsWith(".json"))) {
+        try { const p = path.join(outDir, f); const m = JSON.parse(fs.readFileSync(p, "utf8")); m.client = to; if (m.project) m.project = String(m.project).replace(`projects/${from}/`, `projects/${to}/`); fs.writeFileSync(p, JSON.stringify(m, null, 1)); } catch {}
+      }
+      const lib = musicLibrary(); let touched = false;
+      for (const v of Object.values(lib)) {
+        if (sameClient(v.artist, from)) { v.artist = to; touched = true; }
+        if (v.generated && sameClient(v.generated.for, from)) { v.generated.for = to; touched = true; }
+      }
+      if (touched) saveLibrary(lib);
+      if (fs.existsSync(RUNS)) for (const f of fs.readdirSync(RUNS).filter((x) => x.endsWith(".json"))) {
+        try { const p = path.join(RUNS, f); const g = JSON.parse(fs.readFileSync(p, "utf8")); if (g.req?.client !== from) continue; g.req.client = to; if (g.project) g.project = String(g.project).replace(`projects/${from}/`, `projects/${to}/`); fs.writeFileSync(p, JSON.stringify(g, null, 1)); } catch {}
+      }
+      json(res, { ok: true, name: to, clients: mediaProjects() });
+    },
+    "POST /api/clients/delete": async (req, res) => {
+      const b = await body(req);
+      const name = safeName(b.name);
+      if (!fs.existsSync(path.join(MEDIA, name))) return json(res, { error: "ese cliente no existe" }, 404);
+      if (clientBusy(name)) return json(res, { error: "este cliente tiene procesos en marcha; espera a que terminen" }, 409);
+      let where = toTrash(path.join(MEDIA, name)), videos = 0, projects = 0, songs = 0;
+      const outDir = path.join(OUTPUT, "ia", name), pdir = path.join(ROOT, "projects", name);
+      if (b.videos && fs.existsSync(outDir)) { videos = countFiles(outDir, /\.mp4$/i).n; toTrash(outDir); }
+      if (b.projects && fs.existsSync(pdir)) { projects = fs.readdirSync(pdir, { withFileTypes: true }).filter((d) => d.isDirectory()).length; toTrash(pdir); }
+      if (b.songs) {
+        const lib = musicLibrary();
+        for (const id of clientSongs(name)) {
+          for (const f of fs.existsSync(MUSIC) ? fs.readdirSync(MUSIC) : []) if (path.basename(f, path.extname(f)) === id && /\.(mp3|m4a|wav|aac|flac|ogg)$/i.test(f)) toTrash(path.join(MUSIC, f));
+          delete lib[id]; songs++;
+        }
+        saveLibrary(lib);
+      }
+      json(res, { ok: true, trash: where, videos, projects, songs, clients: mediaProjects() });
+    },
     "POST /api/media/folder": async (req, res) => {
       const { project, folder } = await body(req);
       fs.mkdirSync(path.join(MEDIA, safeName(project), safeName(slug(folder ?? ""))), { recursive: true });
@@ -534,22 +603,13 @@ function ui() {
     "POST /api/videos/delete": async (req, res) => {
       const { paths, project } = await body(req);
       if (!Array.isArray(paths) || !paths.length) return json(res, { error: "elige al menos un video" }, 400);
-      const home = path.join(os.homedir(), ".Trash");
-      const trash = fs.existsSync(home) ? home : path.join(OUTPUT, ".papelera");
-      fs.mkdirSync(trash, { recursive: true });
-      const toTrash = (file) => {
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-        let dest = path.join(trash, path.basename(file));
-        if (fs.existsSync(dest)) dest = path.join(trash, `${stamp} ${path.basename(file)}`);
-        try { fs.renameSync(file, dest); } catch { fs.cpSync(file, dest, { recursive: true }); fs.rmSync(file, { recursive: true, force: true }); }
-      };
-      let videos = 0, projects = 0;
+      let videos = 0, projects = 0, where = "la papelera de macOS";
       for (const rel of paths.slice(0, 300)) {
         const file = path.resolve(OUTPUT, String(rel));
         if (!file.startsWith(OUTPUT + path.sep) || !file.endsWith(".mp4") || !fs.existsSync(file)) continue;
         const side = file.replace(/\.mp4$/, ".json");
         let meta = {}; try { meta = JSON.parse(fs.readFileSync(side, "utf8")); } catch {}
-        toTrash(file); videos++;
+        where = toTrash(file); videos++;
         if (fs.existsSync(side)) toTrash(side);
         // el proyecto editable solo si se pide y está dentro de projects/
         if (project && meta.project) {
@@ -557,7 +617,7 @@ function ui() {
           if (dir.startsWith(path.join(ROOT, "projects") + path.sep) && fs.existsSync(dir)) { toTrash(dir); projects++; }
         }
       }
-      json(res, { ok: true, videos, projects, trash: trash.startsWith(os.homedir()) ? "la papelera de macOS" : "output/.papelera" });
+      json(res, { ok: true, videos, projects, trash: where });
     },
     "POST /api/studio": async (req, res) => {
       const project = projectPath((await body(req)).project);
@@ -1035,6 +1095,34 @@ function trackNames() {
 function findTrack(id) {
   const file = fs.existsSync(MUSIC) && fs.readdirSync(MUSIC).find((f) => path.basename(f, path.extname(f)) === id && AUDIO_EXT.includes(path.extname(f).toLowerCase()));
   return file ? path.join(MUSIC, file) : null;
+}
+
+// Todo lo que se quita va a la papelera de macOS (recuperable), no se borra para siempre.
+function toTrash(file) {
+  const home = path.join(os.homedir(), ".Trash");
+  const trash = fs.existsSync(home) ? home : path.join(OUTPUT, ".papelera");
+  fs.mkdirSync(trash, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  let dest = path.join(trash, path.basename(file));
+  if (fs.existsSync(dest)) dest = path.join(trash, `${stamp} ${path.basename(file)}`);
+  try { fs.renameSync(file, dest); } catch { fs.cpSync(file, dest, { recursive: true }); fs.rmSync(file, { recursive: true, force: true }); }
+  return trash.startsWith(path.join(os.homedir(), ".Trash")) ? "la papelera de macOS" : "output/.papelera";
+}
+function countFiles(dir, re) {
+  let n = 0, bytes = 0;
+  const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (e.name.startsWith(".")) continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (!re || re.test(e.name)) { n++; bytes += fs.statSync(p).size; } } };
+  if (fs.existsSync(dir)) walk(dir);
+  return { n, bytes };
+}
+const sameClient = (a, b) => String(a ?? "").toLowerCase() === String(b ?? "").toLowerCase();
+function clientSongs(name) {
+  return Object.entries(musicLibrary()).filter(([, v]) => sameClient(v.artist, name) || sameClient(v.generated?.for, name)).map(([id]) => id);
+}
+function clientBusy(name) {
+  if (!fs.existsSync(RUNS)) return false;
+  return fs.readdirSync(RUNS).filter((f) => f.endsWith(".json")).some((f) => {
+    try { const g = JSON.parse(fs.readFileSync(path.join(RUNS, f), "utf8")); return ["trabajando", "en cola"].includes(g.status) && g.req?.client === name && (!g.pid || (() => { try { process.kill(g.pid, 0); return true; } catch { return false; } })()); } catch { return false; }
+  });
 }
 
 function musicLibrary() {

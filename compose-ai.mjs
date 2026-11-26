@@ -59,8 +59,12 @@ function context(root, r) {
     const files = fs.readdirSync(path.join(dir, f.name)).filter((x) => !x.startsWith(".") && /\.(png|jpe?g|webp|mp4|mov)$/i.test(x));
     if (!["logo", "audio", "recorridos"].includes(f.name)) items.push(`${f.name}/ (${files.length}): ${files.slice(0, 14).map(prettyName).join(", ")}${files.length > 14 ? "…" : ""}`);
   }
+  let profile = {};
+  try { profile = JSON.parse(fs.readFileSync(path.join(dir, "profile.json"), "utf8")); } catch {}
   const fmt = PLATFORMS[r.format] ?? PLATFORMS["instagram-reels"];
   const lines = [
+    profile.industry ? `- Rubro del cliente: ${profile.industry}` : "",
+    profile.notes ? `- Notas de estilo del cliente: ${profile.notes}` : "",
     `- Cliente: ${r.brand || r.client}`,
     site ? `- Web: ${site.host}${site.title ? ` — «${site.title}»` : ""}${site.description ? `. ${site.description}` : ""}` : "- No hay web importada: guíate por el nombre, las indicaciones y los productos.",
     site?.nav?.length ? `- Secciones de la web: ${site.nav.map((n) => n.label).join(", ")}` : "",
