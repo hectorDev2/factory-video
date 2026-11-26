@@ -104,6 +104,8 @@ La factory **no instala nada por su cuenta**: si falta una herramienta, la panta
 ### Cuentas
 
 - **Claude:** una sesión de Claude Code iniciada (con tu suscripción o con una clave de API). **Gasta tu plan**: ver [qué gasta tu plan de Claude](#qué-gasta-tu-plan-de-claude).
+- **Otras IAs (opcional):** los subtítulos y la música también pueden usar **ChatGPT (Codex)** o **Gemini** en vez de Claude. Se elige en *Ajustes → Inteligencia artificial* (con botón «Probar esta IA»); la clave de Gemini, si la usas, se guarda en `ai-config.json`, que no se sube a git. **«Video con IA» sigue necesitando Claude Code** (ChatGPT/Codex como agente es experimental y sin probar de punta a punta).
+- **Google Drive (opcional):** para enviar reels a la carpeta `reels-lyrics` instala `brew install rclone` y conecta tu cuenta una vez con `rclone config create factorydrive drive scope=drive` (autorizas en el navegador; la contraseña nunca pasa por la fábrica). Los reels enviados quedan marcados en *Videos* y tienen su propia categoría «☁ En Drive».
 - No hace falta cuenta de HyperFrames, de YouTube ni de ninguna red social.
 
 ### Qué necesita cada producto

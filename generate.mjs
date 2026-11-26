@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildSfx } from "./sfx.mjs";
+import { parseSpec } from "./ai.mjs";
 
 const HF_VERSION = "0.9.79";
 export const HF = ["--yes", `hyperframes@${HF_VERSION}`];
@@ -60,9 +61,9 @@ export async function generate({ root, req, update }) {
   if (req.resume) {
     // Continuar: mismo proyecto, misma sesión de Claude (con todo su contexto), sin rehacer nada.
     if (!fs.existsSync(path.join(project, "index.html"))) throw fail("No encuentro el proyecto para continuar");
-    step("Claude continúa donde lo dejó", 10);
-    const claude = await runClaude("Continúa donde lo dejaste: termina el video según BRIEF.md, deja `npx hyperframes check` sin errores, revisa los snapshots y termina con un resumen de 3 líneas. No renderices.", project, update, { resume: typeof req.resume === "string" ? req.resume : undefined, model: req.model });
-    if (!claude.ok) throw fail(`Claude no terminó: ${claude.error ?? "sin detalle"}`, claude);
+    step("La IA continúa donde lo dejó", 10);
+    const claude = await runAgent("Continúa donde lo dejaste: termina el video según BRIEF.md, deja `npx hyperframes check` sin errores, revisa los snapshots y termina con un resumen de 3 líneas. No renderices.", project, update, { resume: typeof req.resume === "string" ? req.resume : undefined, model: req.model });
+    if (!claude.ok) throw fail(`${agent.provider === "codex" ? "ChatGPT (Codex)" : "Claude"} no terminó: ${claude.error ?? "sin detalle"}`, claude);
     return finish(claude);
   }
 
@@ -141,15 +142,21 @@ export async function generate({ root, req, update }) {
   fs.writeFileSync(path.join(project, "BRIEF.md"), brief({ req, fmt, inventory, beats, accents, fadeOut, bars, plan, unused, transitions, site, sfx }));
 
   // 5 · Claude compone el video
-  step("Claude está componiendo el video", 10);
+  const agent = parseSpec(req.model);
+  step(agent.provider === "codex" ? "ChatGPT (Codex) está componiendo el video" : "Claude está componiendo el video", 10);
+  // Claude carga las skills de HyperFrames; otros agentes leen el mismo contrato desde sus archivos.
+  const skillDir = path.join(os.homedir(), ".claude", "skills", "hyperframes");
+  const contract = agent.provider === "claude" ? "Carga la skill /hyperframes para su contrato"
+    : fs.existsSync(path.join(skillDir, "SKILL.md")) ? `Lee ${path.join(skillDir, "SKILL.md")} (el contrato de HyperFrames; sus referencias están en ${path.join(skillDir, "references")}) antes de escribir`
+    : "Sigue el contrato de HyperFrames de AGENTS.md y usa la salida de `npx hyperframes check` (trae «Fix:» por cada error)";
   const prompt = [
-    "Lee BRIEF.md y crea este video con HyperFrames en este proyecto. Carga la skill /hyperframes para su contrato; el plan de cortes, la música y las transiciones ya están resueltos en el brief, así que ve directo a escribir las escenas.",
+    `Lee BRIEF.md y crea este video con HyperFrames en este proyecto. ${contract}; el plan de cortes, la música y las transiciones ya están resueltos en el brief, así que ve directo a escribir las escenas.`,
     "Trabaja sin hacer preguntas: no hay nadie para responder. Decide tú con el brief.",
     "Cuando `npx hyperframes check` no tenga errores y hayas revisado los snapshots, termina con un resumen de 3 líneas. No renderices: la factory renderiza después.",
   ].join("\n");
-  const claude = await runClaude(prompt, project, update, { model: req.model });
-  fs.writeFileSync(path.join(project, "CLAUDE-RUN.json"), JSON.stringify(claude, null, 2));
-  if (!claude.ok) throw fail(`Claude no terminó: ${claude.error ?? "sin detalle"}`, claude);
+  const claude = await runAgent(prompt, project, update, { model: req.model });
+  fs.writeFileSync(path.join(project, "AGENT-RUN.json"), JSON.stringify({ agent: `${agent.provider}:${agent.model}`, ...claude }, null, 2));
+  if (!claude.ok) throw fail(`${agent.provider === "codex" ? "ChatGPT (Codex)" : "Claude"} no terminó: ${claude.error ?? "sin detalle"}`, claude);
   return finish(claude);
 
   // 6 · Comprobación y render
@@ -251,6 +258,70 @@ function siteSection(site, inventory, req) {
     `- Todo esto está también en \`site.json\`.`,
   ].filter(Boolean);
   return `\n## La web del cliente — el video es sobre ella\n\n${lines.join("\n")}\n`;
+}
+
+
+// ¿Qué IA compone el video? «Video con IA» necesita un AGENTE (lee y escribe archivos y ejecuta comandos):
+// Claude Code o Codex (ChatGPT). Gemini solo puede responder preguntas cortas por ahora.
+export const AGENTS = ["claude", "codex"];
+
+function runAgent(prompt, cwd, update, { resume, model } = {}) {
+  const spec = parseSpec(model);
+  if (spec.provider === "codex") return runCodex(prompt, cwd, update, { model: spec.model });
+  return runClaude(prompt, cwd, update, { resume, model: spec.provider === "claude" ? spec.model || "sonnet" : "sonnet" });
+}
+
+// Codex (ChatGPT) como agente: escribe en la carpeta del proyecto y puede usar internet (hyperframes carga sus librerías).
+// Sin tu configuración personal (servidores MCP, instrucciones propias) y sin guardar la sesión.
+function runCodex(prompt, cwd, update, { model } = {}) {
+  return new Promise((resolve) => {
+    const args = ["exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "-s", "workspace-write", "-c", "sandbox_workspace_write.network_access=true",
+      // npx y hyperframes guardan su caché en estas dos carpetas; sin poder escribir ahí, cada comando se vuelve lento o falla
+      "--add-dir", path.join(os.homedir(), ".npm"), "--add-dir", path.join(os.homedir(), ".cache", "hyperframes"),
+      "--json", "--color", "never", "-C", cwd, ...(model ? ["-m", model] : []), "-"];
+    const child = spawn("codex", args, { cwd, env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
+    let buf = "", turns = 0, stderr = "", lastText = "", done = false, failed = null, usage = null;
+    const activity = [];
+    const push = (line) => { activity.push(line); if (activity.length > 12) activity.shift(); update({ activity: [...activity] }); };
+    child.stdin.write(prompt); child.stdin.end();
+    child.stdout.on("data", (d) => {
+      buf += d;
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        let ev; try { ev = JSON.parse(line); } catch { continue; }
+        const it = ev.item;
+        if (ev.type === "item.completed" && it?.type === "agent_message" && it.text?.trim()) { lastText = it.text.trim(); push("💬 " + lastText.split("\n")[0].slice(0, 140)); }
+        if (ev.type === "item.started" && it?.type === "command_execution") {
+          turns++;
+          const cmd = String(it.command ?? "").replace(/^\/bin\/\w+ -lc\s+/, "").replace(/^['"]|['"]$/g, "");
+          const hf = cmd.match(/hyperframes(?:@[\d.]+)?\s+(\w+)/);
+          push(hf ? `⚙️ hyperframes ${hf[1]}` : `⚙️ ${cmd.slice(0, 80)}`);
+          update({ pct: Math.min(78, 10 + turns * 1.2) });
+        }
+        if (ev.type === "item.completed" && it?.type === "file_change") { push(`✍️ ${(it.changes ?? []).map((c) => path.basename(c.path ?? "")).filter(Boolean).slice(0, 3).join(", ") || "Escribe archivos"}`); }
+        if (ev.type === "turn.completed") { done = true; usage = ev.usage ?? null; }
+        if (ev.type === "turn.failed" || ev.type === "error") failed = ev.error?.message ?? ev.message ?? failed ?? "error";
+      }
+    });
+    child.stderr.on("data", (d) => (stderr += d));
+    const timer = setTimeout(() => { child.kill(); push("⏱ Se agotó el tiempo (30 min)"); }, CLAUDE_TIMEOUT_MS);
+    child.on("error", (e) => resolve({ ok: false, error: e.code === "ENOENT" ? "no encuentro la herramienta `codex`" : e.message }));
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      const errText = String(failed ?? lastText ?? "");
+      const limitHit = /usage limit|rate limit|quota|try again (in|at)/i.test(errText) && !done;
+      resolve({
+        session: null,
+        limit: limitHit ? (errText.match(/(?:try again|resets?)[^.\n]*/i)?.[0] ?? "más tarde") : null,
+        ok: code === 0 && done && !failed,
+        error: limitHit ? `se alcanzó el límite de uso de tu cuenta de ChatGPT (${errText.slice(0, 120)})` : failed ?? (stderr.trim().split("\n").slice(-2).join(" ") || `Codex terminó con código ${code}`),
+        summary: lastText,
+        turns,
+        usage,
+      });
+    });
+  });
 }
 
 function runClaude(prompt, cwd, update, { resume, model } = {}) {

@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { PLATFORMS, prettyName } from "./generate.mjs";
 import { STYLES, saveSong } from "./synth.mjs";
+import { askJsonFull } from "./ai.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const KEYS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -104,30 +105,8 @@ Piensa en el negocio: qué escucharía su cliente ideal, qué emoción vende (ha
 Responde SOLO con el JSON. En "why", explica en español, en 2 frases, por qué esa música encaja con este cliente. En "title", un nombre corto para la canción.`;
 }
 
-function askClaude(text, model) {
-  return new Promise((resolve, reject) => {
-    const args = ["-p", text, "--output-format", "json", "--tools", "", "--disable-slash-commands", "--no-session-persistence", "--effort", "low", "--model", model || "sonnet", "--json-schema", JSON.stringify(SCHEMA)];
-    const child = spawn("claude", args, { cwd: os.tmpdir(), env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
-    let out = "", err = "";
-    child.stdout.on("data", (d) => (out += d));
-    child.stderr.on("data", (d) => (err += d));
-    const timer = setTimeout(() => { child.kill(); reject(new Error("Claude tardó demasiado (3 min)")); }, 180000);
-    child.on("error", (e) => reject(new Error(e.code === "ENOENT" ? "no encuentro el CLI `claude`" : e.message)));
-    child.on("close", () => {
-      clearTimeout(timer);
-      let ev; try { ev = JSON.parse(out); } catch { return reject(new Error(`respuesta ilegible de Claude: ${(out || err).trim().slice(0, 200)}`)); }
-      const textOut = String(ev.result ?? "");
-      if (ev.is_error) return reject(new Error(/hit your .*limit|usage limit|resets \d/i.test(textOut) ? `Claude: ${textOut.trim()}` : `Claude falló: ${textOut.trim().slice(0, 200)}`));
-      let spec = ev.structured_output;
-      if (!spec) { const m = textOut.match(/\{[\s\S]*\}/); try { spec = m && JSON.parse(m[0]); } catch {} }
-      if (!spec || typeof spec !== "object") return reject(new Error("Claude no devolvió una canción válida"));
-      resolve({ spec, usage: ev.usage, cost: ev.total_cost_usd, turns: ev.num_turns });
-    });
-  });
-}
-
 export async function composeForClient(r, root = ROOT) {
-  const { spec, cost } = await askClaude(prompt(root, r), r.model);
+  const { data: spec, cost } = await askJsonFull(prompt(root, r), SCHEMA, r.model);
   const song = saveSong({
     root, style: STYLES[spec.style] ? spec.style : "pop", bpm: spec.bpm, key: spec.key, scale: spec.scale, seed: spec.seed,
     dur: Number(r.songSeconds) || 45, name: spec.title, tweaks: spec, why: spec.why, for: r.brand || r.client,

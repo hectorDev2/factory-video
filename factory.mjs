@@ -11,6 +11,7 @@
 //   node factory.mjs ui [--port 4600]             interfaz para elegir qué parte de cada canción usar
 
 import { sfxStatus } from "./sfx.mjs";
+import { aiStatus, loadConfig, saveConfig, parseSpec, specToString, testAi } from "./ai.mjs";
 import { STYLES as SONG_STYLES } from "./synth.mjs";
 import { spawn, spawnSync } from "node:child_process";
 import http from "node:http";
@@ -147,7 +148,7 @@ function ui() {
     "GET /api/state": (req, res) => json(res, {
       tracks: trackNames().map((id) => ({ id, duration: probeDuration(findTrack(id)), ...musicLibrary()[id] })),
       templates: templateNames().map((name) => ({ name, ...readTemplate(name), slots: templateSlots(name) })),
-      clients: mediaProjects(), sfx: sfxStatus(), tools: toolStatus(),
+      clients: mediaProjects(), sfx: sfxStatus(), tools: toolStatus(), ai: aiStatus(),
       lyricStyles: Object.entries(LYRIC_STYLES).map(([id, label]) => ({ id, label })), lyricFonts: LYRIC_FONTS, lyricPositions: Object.entries(LYRIC_POSITIONS).map(([id, label]) => ({ id, label })),
       songStyles: Object.entries(SONG_STYLES).map(([id, v]) => ({ id, label: v.label, bpm: v.bpm, scale: v.scale })),
       platforms: Object.entries(PLATFORMS).map(([id, p]) => ({ id, network: p.network, label: p.label, w: p.w, h: p.h, max: p.max })),
@@ -214,7 +215,7 @@ function ui() {
         req: { client, name, source, fromOutput, font: LYRIC_FONTS.includes(b.font) ? b.font : null, position: LYRIC_POSITIONS[b.position] ? b.position : "bottom", title: String(b.title ?? name).slice(0, 80), format: PLATFORMS[b.format] ? b.format : "instagram-reels", show: ["both", "es", "en"].includes(b.show) ? b.show : "both",
                language: ["auto", "es", "en"].includes(b.language) ? b.language : "auto", style: LYRIC_STYLES[b.style] ? b.style : "karaoke",
                accent: /^#[0-9a-f]{6}$/i.test(b.accent ?? "") ? b.accent : null, from: Math.max(0, Number(b.from) || 0), duration: Number(b.duration) || null, full: !!b.full,
-               model: ["sonnet", "opus"].includes(b.model) ? b.model : "sonnet", quality: ["draft", "looks", "delivery"].includes(b.quality) ? b.quality : "looks" },
+               model: specToString(parseSpec(b.model)), quality: ["draft", "looks", "delivery"].includes(b.quality) ? b.quality : "looks" },
       };
       startRun(g);
       json(res, { id: g.id });
@@ -327,7 +328,7 @@ function ui() {
       fs.mkdirSync(RUNS, { recursive: true });
       fs.writeFileSync(reqFile, JSON.stringify({ client, brand: String(b.brand ?? "").slice(0, 60), notes: String(b.notes ?? "").slice(0, 1500), hint: String(b.hint ?? "").slice(0, 400),
         format: FORMAT_IDS.includes(b.format) ? b.format : "instagram-reels", videoSeconds: Math.min(90, Math.max(5, Number(b.videoSeconds) || 20)),
-        songSeconds: Math.min(150, Math.max(20, Number(b.songSeconds) || 45)), model: ["sonnet", "opus"].includes(b.model) ? b.model : "sonnet" }));
+        songSeconds: Math.min(150, Math.max(20, Number(b.songSeconds) || 45)), model: specToString(parseSpec(b.model)) }));
       const { ok, log } = await run(process.execPath, [path.join(ROOT, "compose-ai.mjs"), reqFile], 200000);
       fs.rmSync(reqFile, { force: true });
       let out; try { out = JSON.parse(log.slice(log.indexOf("{"), log.lastIndexOf("}") + 1)); } catch { out = { error: log.trim().split("\n").pop() || "sin respuesta" }; }
@@ -388,6 +389,7 @@ function ui() {
       if (!track) return json(res, { error: "elige una canción" }, 400);
       if (!FORMAT_IDS.includes(b.format)) return json(res, { error: "elige la red social" }, 400);
       const duration = Number(b.duration), start = Number(b.start);
+      if (b.model && !["claude", "codex"].includes(parseSpec(b.model).provider)) return json(res, { error: "Gemini todavía no puede componer videos (hace falta un agente que escriba archivos): usa Claude o ChatGPT (Codex)" }, 400);
       if (!(duration >= 5 && duration <= PLATFORMS[b.format].max) || !(start >= 0)) return json(res, { error: `${PLATFORMS[b.format].network} ${PLATFORMS[b.format].label} admite hasta ${PLATFORMS[b.format].max} s` }, 400);
       if (start + duration > probeDuration(track) + 0.05) return json(res, { error: "el fragmento se sale de la canción" }, 400);
       const folders = pickFolders(client, b.folderOrder);
@@ -397,7 +399,7 @@ function ui() {
       const g = {
         id: `${Date.now().toString(36)}-${name}`, status: "en cola", phase: "En cola", pct: 0, activity: [], createdAt: Date.now(),
         req: { client, name, folders, track: { id: b.track, file: track, artist: meta.artist, title: meta.title }, start, duration,
-               model: ["sonnet", "opus"].includes(b.model) ? b.model : "sonnet",
+               model: specToString(parseSpec(b.model)),
                format: b.format, brand: String(b.brand ?? "").slice(0, 60), cta: String(b.cta ?? "").slice(0, 60),
                notes: String(b.notes ?? "").slice(0, 2000), sfx: b.sfx !== false,
                texts: { hook: String(b.texts?.hook ?? "").slice(0, 120), extra: (Array.isArray(b.texts?.extra) ? b.texts.extra : []).map((t) => String(t).slice(0, 120)).filter(Boolean).slice(0, 20) }, quality: ["draft", "looks", "delivery"].includes(b.quality) ? b.quality : "looks" },
@@ -459,7 +461,7 @@ function ui() {
       const old = JSON.parse(fs.readFileSync(file, "utf8"));
       if (!old.project) return json(res, { error: "esa generación no llegó a crear el proyecto" }, 400);
       const g = { id: `${Date.now().toString(36)}-${old.req.name}`, status: "en cola", phase: "En cola", pct: 0, activity: [], createdAt: Date.now(),
-                  req: { ...old.req, resume: old.claudeSession ?? true, model: ["sonnet", "opus"].includes(model) ? model : old.req.model }, experimental: old.experimental, project: old.project };
+                  req: { ...old.req, resume: old.claudeSession ?? true, model: model ? specToString(parseSpec(model)) : old.req.model }, experimental: old.experimental, project: old.project };
       startRun(g);
       json(res, { id: g.id });
     },
@@ -578,6 +580,39 @@ function ui() {
         saveLibrary(lib);
       }
       json(res, { ok: true, trash: where, videos, projects, songs, clients: mediaProjects() });
+    },
+    // ----- IA: qué herramienta responde a las preguntas cortas (subtítulos y música) -----
+    "POST /api/ai/config": async (req, res) => {
+      const b = await body(req);
+      const patch = {};
+      if (b.text !== undefined) patch.text = specToString(parseSpec(b.text));
+      if (typeof b.geminiKey === "string") patch.geminiKey = b.geminiKey.trim().slice(0, 200);
+      saveConfig(patch);
+      json(res, { ok: true, ai: aiStatus() });
+    },
+    "POST /api/ai/test": async (req, res) => {
+      const { spec } = await body(req);
+      json(res, await testAi(spec));
+    },
+    // ----- Google Drive (vía rclone: tú autorizas una vez en el navegador; la contraseña nunca pasa por aquí) -----
+    "GET /api/drive/status": (req, res) => json(res, driveStatus()),
+    "POST /api/drive/upload": async (req, res) => {
+      const { paths, folder } = await body(req);
+      const st = driveStatus();
+      if (!st.ready) return json(res, { error: st.hint }, 400);
+      if (!Array.isArray(paths) || !paths.length) return json(res, { error: "elige al menos un video" }, 400);
+      const base = String(folder || "reels-lyrics").replace(/[:\\]/g, "-").replace(/^\/+|\/+$/g, "") || "reels-lyrics";
+      let sent = 0; const failed = [];
+      for (const rel of paths.slice(0, 100)) {
+        const file = path.resolve(OUTPUT, String(rel));
+        if (!file.startsWith(OUTPUT + path.sep) || !file.endsWith(".mp4") || !fs.existsSync(file)) continue;
+        const r = await new Promise((ok) => {
+          const p = spawn("rclone", ["copyto", file, `${st.remote}${base}/${driveName(rel)}`, "--drive-chunk-size", "32M"]);
+          let err = ""; p.stderr.on("data", (d) => (err += d)); p.on("error", () => ok({ code: 1, err: "no encuentro rclone" })); p.on("close", (code) => ok({ code, err }));
+        });
+        if (r.code === 0) { sent++; markDrive(rel, driveName(rel)); } else failed.push(`${rel}: ${r.err.trim().split("\n").pop()}`);
+      }
+      json(res, { ok: !failed.length, sent, failed, folder: base });
     },
     "POST /api/media/folder": async (req, res) => {
       const { project, folder } = await body(req);
@@ -734,6 +769,29 @@ function videoInfo(file) {
   return info;
 }
 
+// Registro de los videos ya enviados a Drive (drive-sent.json), para marcarlos en la galería.
+const DRIVE_LOG = path.join(ROOT, "drive-sent.json");
+function driveLog() { try { return JSON.parse(fs.readFileSync(DRIVE_LOG, "utf8")); } catch { return {}; } }
+function markDrive(rel, name) { const l = driveLog(); l[String(rel).replace(/\\/g, "/")] = { name, at: Date.now() }; fs.writeFileSync(DRIVE_LOG, JSON.stringify(l, null, 1)); }
+
+// Nombre claro en Drive: sin carpetas «ia» ni de cliente, todo plano: «<cliente>-<reel>.mp4».
+function driveName(rel) {
+  const parts = String(rel).split(/[\\/]/).filter(Boolean), file = parts.pop();
+  const client = parts.filter((x) => x !== "ia" && x !== "trailer-delivery").pop();
+  return client && !file.startsWith(client) ? `${client}-${file}` : file;
+}
+
+// ¿Está rclone listo con una cuenta de Google Drive? Se usa el primer remoto de tipo «drive».
+function driveStatus() {
+  if (spawnSync("which", ["rclone"]).status !== 0)
+    return { installed: false, ready: false, hint: "Falta rclone. Instálalo con: brew install rclone" };
+  const r = spawnSync("rclone", ["config", "dump"], { encoding: "utf8" });
+  let remotes = {}; try { remotes = JSON.parse(r.stdout || "{}"); } catch {}
+  const name = Object.keys(remotes).find((k) => remotes[k].type === "drive");
+  if (!name) return { installed: true, ready: false, hint: "Falta conectar tu Drive. Ejecuta `rclone config`, elige «n» (nuevo), tipo «drive», y autoriza en el navegador con la cuenta que quieras usar." };
+  return { installed: true, ready: true, remote: `${name}:`, name };
+}
+
 function listVideos() {
   const out = [];
   const walk = (dir) => {
@@ -745,6 +803,7 @@ function listVideos() {
     }
   };
   if (fs.existsSync(OUTPUT)) walk(OUTPUT);
+  const sent = driveLog();
   return out.map((file) => {
     const rel = path.relative(OUTPUT, file), parts = rel.split(path.sep), st = fs.statSync(file);
     const sidecar = file.replace(/\.mp4$/, ".json");
@@ -758,7 +817,7 @@ function listVideos() {
       path: parts.join("/"), name: path.basename(file, ".mp4"), kind: ia ? "ia" : "plantilla",
       client: meta.client ?? (ia ? parts[1] : null), network: platform ? `${platform.network} ${platform.label}` : null, format: meta.format ?? null,
       track: meta.track ?? null, start: meta.start ?? null, brand: meta.brand ?? null, cta: meta.cta ?? null, model: meta.model ?? null,
-      experimental: !!meta.experimental, project, createdAt: meta.createdAt ?? st.mtimeMs, mtime: st.mtimeMs, size: st.size, ...info,
+      drive: sent[parts.join("/")] ?? null, experimental: !!meta.experimental, project, createdAt: meta.createdAt ?? st.mtimeMs, mtime: st.mtimeMs, size: st.size, ...info,
     };
   }).sort((a, b) => (a.kind === "ia" ? 0 : 1) - (b.kind === "ia" ? 0 : 1) || b.mtime - a.mtime);
 }
