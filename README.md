@@ -6,6 +6,8 @@ Una **fábrica de videos cortos para redes sociales**, hecha para trabajar con v
 |---|---|---|
 | 🎬 **Reel con subtítulos** *(producto 1)* | Descargas un video de YouTube, Instagram, TikTok…, eliges el tramo y sale un reel vertical subtitulado con efectos, en español, inglés o ambos | ~5–8 min |
 | 🎞️ **Video con música e imágenes** | Con las fotos y clips de un cliente y una canción, Claude monta un video con cortes y transiciones sobre el ritmo | ~8–15 min |
+| ✨ **Motion graphics** | 26 plantillas animadas (intro con logo, oferta, reseñas, antes y después…): cambias los textos y sale un MP4 vertical, sin gastar IA | ~1–2 min |
+| 🎞 **Película por guion** | Pegas un guion, eliges uno de 99 estilos (acuarela, noticiero, pizarra…) y la IA dirige una película entera hecha en código | 30–60 min |
 | 🎵 **Música a medida** | Canciones compuestas por código, o por Claude leyendo la web del cliente. Sin derechos de terceros | ~3–15 s |
 | 📦 **Lotes por plantilla** | Plantillas HTML + un JSON = muchos MP4 de una vez, por terminal | segundos por video |
 
@@ -100,13 +102,17 @@ La factory **no instala nada por su cuenta**: si falta una herramienta, la panta
 | Chrome sin ventana de HyperFrames | ~430 MB | Al renderizar o importar una web por primera vez |
 | Modelo de voz de Whisper (`small`) | ~470 MB | Al subtitular por primera vez (`small.en` es otro modelo igual de grande, solo si subtitulas en inglés) |
 | Parakeet | ~640 MB | Al instalarlo (opcional) |
+| Playwright (la «cámara» de los motion graphics) | ~10 MB | `npm install playwright` (usa el Chrome sin ventana de HyperFrames, no descarga otro navegador) |
+| Biblioteca Lemo-Opuscar (películas por guion) | ~260 MB de código + ~1,1 GB con sus paquetes, navegador, voz y música | Al clonarla en `vendor/` e instalar sus paquetes (opcional) |
 
 ### Cuentas
 
 - **Claude:** una sesión de Claude Code iniciada (con tu suscripción o con una clave de API). **Gasta tu plan**: ver [qué gasta tu plan de Claude](#qué-gasta-tu-plan-de-claude).
 - **Otras IAs (opcional):** los subtítulos y la música también pueden usar **ChatGPT (Codex)** o **Gemini** en vez de Claude. Se elige en *Ajustes → Inteligencia artificial* (con botón «Probar esta IA»); la clave de Gemini, si la usas, se guarda en `ai-config.json`, que no se sube a git. **«Video con IA» sigue necesitando Claude Code** (ChatGPT/Codex como agente es experimental y sin probar de punta a punta).
 - **Google Drive (opcional):** para enviar reels a la carpeta `reels-lyrics` instala `brew install rclone` y conecta tu cuenta una vez con `rclone config create factorydrive drive scope=drive` (autorizas en el navegador; la contraseña nunca pasa por la fábrica). Los reels enviados quedan marcados en *Videos* y tienen su propia categoría «☁ En Drive».
-- No hace falta cuenta de HyperFrames, de YouTube ni de ninguna red social.
+- **Junie (opcional, JetBrains):** también se puede elegir para los subtítulos y la música. Necesita una **suscripción activa de JetBrains AI** y su token (de [junie.jetbrains.com/cli](https://junie.jetbrains.com/cli)), que se pega en *Ajustes → Inteligencia artificial → Clave de Junie*. Sin suscripción responde «No active JetBrains AI subscription».
+- **TikTok (opcional):** sube reels como **borrador** a la bandeja de tu app de TikTok con la Content Posting API (módulo `tiktok.mjs`). Hace falta registrar una app en TikTok for Developers; mientras no la apruebe, solo sirve con cuentas de prueba (*sandbox*). Las páginas de privacidad y términos que pide TikTok están en `docs/`.
+- No hace falta cuenta de HyperFrames ni de YouTube.
 
 ### Qué necesita cada producto
 
@@ -114,6 +120,8 @@ La factory **no instala nada por su cuenta**: si falta una herramienta, la panta
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
 | 🎬 Reel con subtítulos | ✅ | ✅ | ✅ | ✅ (si descargas) | ✅ | ✅ |
 | 🎞️ Video con música e imágenes | ✅ | ✅ | ✅ | — | — | ✅ |
+| ✨ Motion graphics | ✅ | — | ✅ | — | — | — (usa Playwright + Python 3) |
+| 🎞 Película por guion | ✅ | ✅ (Sonnet u Opus) | ✅ | — | — | — (usa Lemo-Opuscar) |
 | 🎵 Música por parámetros | ✅ | — | ✅ | — | — | — |
 | 🎵 Música con Claude | ✅ | ✅ | ✅ | — | — | — |
 | 📦 Lotes por plantilla | ✅ | — | ✅ | — | — | ✅ |
@@ -126,6 +134,8 @@ La factory **no instala nada por su cuenta**: si falta una herramienta, la panta
 | Reel de ~20 s | 5–8 min en total |
 | Reel de 60 s | ~8–10 min |
 | Video con música e imágenes (15 s) | 8–15 min |
+| Motion graphics (5–9 s) | ~1–2 min |
+| Película por guion (~45 s) | 30–60 min |
 | Música por parámetros | 2–3 s |
 | Música con Claude | ~15 s |
 | Render de un video largo | calcula 4–8 s por cada segundo de video; «Borrador» es más rápido |
@@ -148,7 +158,18 @@ git clone https://github.com/hectorDev2/factory-video.git
 cd factory-video
 ```
 
-No hay `npm install`: la factory no tiene dependencias propias.
+Para los **motion graphics** añade una sola dependencia: `npm install playwright` (queda en `node_modules/`, fuera de git). El resto no necesita `npm install`.
+
+Opcionales:
+
+```bash
+brew install rclone                                   # enviar reels a Google Drive
+rclone config create factorydrive drive scope=drive   # autorizas en el navegador, una vez
+
+# Películas por guion (Lemo-Opuscar)
+git clone --depth 1 https://github.com/lemomo-ai/lemo-opuscar.git vendor/lemo-opuscar
+LEMO_OPUSCAR_HOME=$PWD/vendor/lemo-opuscar sh vendor/lemo-opuscar/plugin/skills/lemo-opuscar/scripts/setup.sh deps voice music
+```
 
 ### Arrancar
 
@@ -350,6 +371,31 @@ node synth.mjs --style house --bpm 124 --key A --scale minor --seed 7 --dur 45 -
 
 ---
 
+## ✨ Motion graphics
+
+Menú **Motion**. Usa el kit `motion-graphics-viegas/` (de Viegas Estudio; **no va en este repositorio**: colócalo en la raíz de la fábrica): cada plantilla es una página HTML que se fotografía cuadro a cuadro con Chrome sin ventana y se convierte en MP4 con ffmpeg. **No gasta IA.**
+
+1. Elige una de las **26 plantillas** (por sector: coach, abogado, inmobiliaria, restaurante, fitness, tienda, fotógrafo, educación, eventos y genéricas).
+2. Elige cliente y nombre, cambia los textos y cifras (las listas de datos se editan como JSON) y la calidad (rápida 1080p 30 fps, o redes 1080p 60 fps).
+3. **Vista previa** (6 cuadros) o **Crear el video**. El MP4 queda en `output/motion/<cliente>/` y sale en **Videos**.
+
+Cada pieza se arma en `motion/<cliente>-<nombre>/` (fuera de git). Si no tienes Google Chrome, usa el navegador sin ventana que ya dejó HyperFrames.
+
+## 🎞 Película por guion
+
+Menú **Guion**. Usa [Lemo-Opuscar](https://github.com/lemomo-ai/lemo-opuscar) (clonado en `vendor/lemo-opuscar/`, licencias por archivo: revísalas antes de usar el resultado comercialmente): **99 estilos** de película hechos enteros en código, sin modelo de video.
+
+1. Pega el guion (cada párrafo o línea es una escena), elige cliente, nombre, idioma, formato (vertical u horizontal), duración y si lleva narración.
+2. Elige el **estilo** en la galería. Los marcados con ✦ (Manga Panels, Text Flash Cuts, Comic History Cartoon) necesitan un generador de imágenes propio.
+3. Elige la IA directora (**Claude Sonnet**, recomendada con plan Pro, u Opus) y el esfuerzo (medio o alto).
+4. La IA sigue las guías de la biblioteca dentro de `films/<cliente>/<nombre>/` y deja `final.mp4` y sus subtítulos `.srt`, que se copian a `output/film/<cliente>/`.
+
+**Cuesta mucho:** 30–60 min y bastante de tu plan de Claude. Solo funciona con Claude. Repetir el mismo nombre retoma el trabajo que ya haya en la carpeta.
+
+## ☁ Google Drive
+
+En **Videos**, pulsa **☑ Seleccionar**, marca los reels y **☁ Enviar a Drive**. Se suben con `rclone` a una sola carpeta, `reels-lyrics`, con nombre `<cliente>-<reel>.mp4`. Los enviados llevan la insignia **☁ Drive** y tienen su propia categoría en el filtro. El registro vive en `drive-sent.json` (fuera de git). La contraseña de Google nunca pasa por la fábrica: autorizas tú en el navegador.
+
 ## 👥 Clientes y contenido
 
 Todo gira alrededor del **cliente activo** (menú de arriba a la izquierda). Cada cliente tiene su ficha y sus carpetas en `media/<cliente>/`.
@@ -489,6 +535,10 @@ La interfaz solo muestra como «en proceso» lo que **de verdad está vivo** o q
 | Subtitular un reel | 1 corta, sin herramientas | ~15 s, centavos |
 | Video con música e imágenes | una sesión completa con herramientas | varios minutos, lo más caro |
 | Editar textos de un video ya hecho | ninguna | gratis |
+| Motion graphics | ninguna | gratis |
+| Película por guion | una sesión larga, esfuerzo medio o alto | 30–60 min, lo más caro |
+
+**Estimación por sesión de 5 h con plan Pro** (aproximada; Anthropic no publica los límites exactos): ~20–40 reels, 100+ motion graphics, 3–8 videos con IA (con Sonnet) y 0–1 película. Para ahorrar Claude, usa **Gemini o ChatGPT para los subtítulos y la música** (Ajustes) y motion graphics para el volumen.
 
 ---
 
@@ -565,6 +615,11 @@ Bajar música de Spotify por terminal (experimental): `node factory.mjs fetch "D
 | Textos y render | `GET/POST /api/project/texts` · `POST /api/render` · `GET /api/render/status` |
 | Procesos | `GET /api/runs` · `POST /api/runs/dismiss` |
 | Música | `GET /api/audio` · `/peaks` · `/beats` · `GET /api/search` · `POST /api/download` · `/fetch` · `/music/generate` · `/music/compose` · `/music/upload` · `/hook` |
+| IA | `POST /api/ai/config` · `POST /api/ai/test` |
+| Motion graphics | `GET /api/motion/catalog` · `POST /api/motion/preview` · `POST /api/motion/render` · `GET /api/motion/status` · `GET /api/motion/sheet` |
+| Película por guion | `GET /api/film/styles` · `GET /api/film/poster` · `POST /api/film` |
+| Google Drive | `GET /api/drive/status` · `POST /api/drive/upload` |
+| TikTok | `GET /api/tiktok/status` · `POST /api/tiktok/app` · `/auth` · `/unlink` · `/schedule` · `/remove` · `/retry` · `GET /api/tiktok/queue` |
 | Videos | `GET /api/videos` · `/output` · `/poster` · `POST /api/studio` · `/reveal` |
 
 ### Estructura de un `site.json`, de `library.json` y de un video

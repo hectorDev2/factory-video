@@ -23,6 +23,9 @@ import { fileURLToPath } from "node:url";
 import { FORMAT_IDS, PLATFORMS, readCopy, writeCopy, previewPlan } from "./generate.mjs";
 import { LYRIC_STYLES, LYRIC_FONTS, LYRIC_POSITIONS } from "./lyrics.mjs";
 import { captureSite, normalizeUrl } from "./site.mjs";
+import { createMotion } from "./motion.mjs";
+import { filmStyles, filmStatus } from "./film.mjs";
+import { songScript } from "./song.mjs";
 import { createTikTok } from "./tiktok.mjs";
 import { findBin, hasBin, NPX, NPX_ARGS } from "./bin.mjs";
 
@@ -127,6 +130,7 @@ function ui() {
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
   // La URL de redirección tiene que coincidir EXACTA con la registrada en TikTok for Developers (Login Kit → Desktop).
+  const motion = createMotion({ root: ROOT, output: OUTPUT });
   const tiktok = createTikTok({ dir: path.join(ROOT, "social"), outputDir: OUTPUT, redirectUri: `http://localhost:${port}/api/tiktok/callback/` });
   const tiktokCallback = async (req, res, q) => {
     let ok = true, msg;
@@ -366,6 +370,35 @@ function ui() {
       saveLibrary(lib);
       json(res, { ok: true, id });
     },
+    // Los mejores tramos de una canción: lo más fuerte y repetido (estribillo) y, si vino de YouTube, lo más reproducido.
+    "GET /api/track/hotspots": async (req, res, q) => {
+      const id = String(q.get("id") ?? ""), file = findTrack(id);
+      if (!file) return json(res, { error: "esa canción no existe" }, 404);
+      const len = Math.min(120, Math.max(8, Number(q.get("len")) || 30));
+      const spots = [];
+      const py = spawnSync("python3", [path.join(ROOT, "hotspots.py"), file, String(len), "3"], { encoding: "utf8", maxBuffer: 1 << 24, timeout: 120000 });
+      let total = 0;
+      try { const d = JSON.parse(py.stdout); total = d.total ?? 0; for (const s of d.spots ?? []) spots.push({ start: s.start, score: s.score, source: "audio", label: s.repeat > 0.8 ? "Fuerte y se repite: suena a estribillo" : "Una de las partes más fuertes" }); } catch {}
+      // «Lo más reproducido» de YouTube (solo canciones que se bajaron de YouTube)
+      const yt = musicLibrary()[id]?.youtube;
+      let youtube = null;
+      if (yt) {
+        const r = await run(ytdlpBin(), ["--no-warnings", "--skip-download", "--js-runtimes", `node:${process.execPath}`, "-J", `https://www.youtube.com/watch?v=${yt}`], 60000).catch(() => null);
+        try {
+          const info = JSON.parse(r.log.slice(r.log.indexOf("{")));
+          const hm = (info.heatmap ?? []).filter((h) => h.end_time > h.start_time);
+          if (hm.length) {
+            const bins = hm.map((h) => ({ a: h.start_time, b: h.end_time, v: h.value }));
+            const at = (t) => bins.find((x) => t >= x.a && t < x.b)?.v ?? 0;
+            const cand = []; for (let t = 0; t + len <= (info.duration ?? total); t += 2) { let sum = 0, k = 0; for (let u = t; u < t + len; u += 2) { sum += at(u); k++; } cand.push({ t, avg: sum / k }); }
+            cand.sort((a, b) => b.avg - a.avg);
+            const picks = []; for (const c of cand) { if (picks.every((p) => Math.abs(p.t - c.t) >= len * 0.8)) picks.push(c); if (picks.length >= 2) break; }
+            youtube = picks.map((p) => ({ start: p.t, score: Math.round(p.avg * 100) / 100, source: "youtube", label: "De lo más reproducido en YouTube" }));
+          }
+        } catch {}
+      }
+      json(res, { id, length: len, spots: [...(youtube ?? []), ...spots], youtube: youtube ? true : !!yt ? "sin-datos" : false });
+    },
     "POST /api/hook": async (req, res) => {
       const { id, hook } = await body(req);
       if (!findTrack(id) || typeof hook !== "number" || hook < 0) return json(res, { error: "pista u hook inválidos" }, 400);
@@ -443,11 +476,40 @@ function ui() {
         const made = fs.existsSync(out) && fs.statSync(out).mtimeMs > g.createdAt;
         const newer = all.some((x) => x.id !== g.id && x.req.client === g.req.client && x.req.name === g.req.name && x.createdAt > g.createdAt);
         const stalled = status === "trabajando" && g.updatedAt && Date.now() - g.updatedAt > 15 * 60000;
-        return { id: g.id, kind: g.kind, status, phase: g.phase, pct: g.pct, error: error ?? g.error, limit: g.limit, createdAt: g.createdAt, name: g.req.name, finishedAt: g.finishedAt,
+        return { id: g.id, kind: g.kind, status, phase: g.phase, pct: g.pct, error: error ?? g.error, limit: g.limit, createdAt: g.createdAt, name: g.req.name, finishedAt: g.finishedAt, updatedAt: g.updatedAt, startedAt: g.startedAt, pid: g.pid, alive: !!g.pid && alive(g.pid), last: (g.activity ?? []).at(-1) ?? null, cancelled: !!g.cancelled, canResume: g.kind === "film",
                  client: g.req.client, format: g.req.format, outputs: g.outputs ?? [], project: g.project, experimental: g.experimental, stalled,
                  hidden: !!g.dismissed || (status === "falló" && (made || newer)) };
       }).filter((g) => !g.hidden).slice(0, 12);
       json(res, { runs });
+    },
+    // Cancelar un proceso en marcha o en cola (reel, video con IA, película…): se detiene su grupo de procesos completo
+    // (la IA, ffmpeg, el navegador…), se libera el turno y lo ya hecho queda guardado en su carpeta.
+    "POST /api/runs/cancel": async (req, res) => {
+      const { id } = await body(req);
+      const file = path.join(RUNS, `${safeName(id)}.json`);
+      if (!fs.existsSync(file)) notFound();
+      const g = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (!["trabajando", "en cola"].includes(g.status)) return json(res, { error: "ese proceso ya terminó" }, 400);
+      const kill = (sig) => { try { process.kill(-g.pid, sig); } catch { try { process.kill(g.pid, sig); } catch {} } };
+      if (g.pid) { kill("SIGTERM"); setTimeout(() => kill("SIGKILL"), 4000).unref(); }
+      try { if (Number(fs.readFileSync(path.join(RUNS, ".lock"), "utf8")) === g.pid) fs.rmSync(path.join(RUNS, ".lock")); } catch {}
+      Object.assign(g, { status: "falló", phase: "Cancelado", error: "Lo cancelaste. Lo hecho hasta ahora quedó guardado en su carpeta.", cancelled: true, finishedAt: Date.now(), updatedAt: Date.now() });
+      fs.writeFileSync(file, JSON.stringify(g, null, 1));
+      json(res, { ok: true });
+    },
+    // Continuar una película cortada (error, cancelada, límite del plan): misma carpeta y, si existe, la misma sesión de Claude.
+    "POST /api/film/continue": async (req, res) => {
+      const { id } = await body(req);
+      const file = path.join(RUNS, `${safeName(id)}.json`);
+      if (!fs.existsSync(file)) notFound();
+      const old = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (old.kind !== "film") return json(res, { error: "solo las películas se continúan desde aquí" }, 400);
+      if (["trabajando", "en cola"].includes(old.status) && old.pid && (() => { try { process.kill(old.pid, 0); return true; } catch { return false; } })()) return json(res, { error: "esa película sigue en marcha" }, 400);
+      const g = { id: `${Date.now().toString(36)}-${old.req.name}`, kind: "film", status: "en cola", phase: "En cola", pct: Math.min(old.pct ?? 0, 60), activity: [], createdAt: Date.now(),
+        req: { ...old.req, resume: old.claudeSession ?? null }, continuedFrom: old.id };
+      old.dismissed = true; fs.writeFileSync(file, JSON.stringify(old, null, 1));
+      startRun(g);
+      json(res, { id: g.id });
     },
     "POST /api/runs/dismiss": async (req, res) => {
       const { id } = await body(req);
@@ -593,6 +655,7 @@ function ui() {
       const patch = {};
       if (b.text !== undefined) patch.text = specToString(parseSpec(b.text));
       if (typeof b.geminiKey === "string") patch.geminiKey = b.geminiKey.trim().slice(0, 200);
+      if (typeof b.junieKey === "string") patch.junieKey = b.junieKey.trim().slice(0, 300);
       saveConfig(patch);
       json(res, { ok: true, ai: aiStatus() });
     },
@@ -601,6 +664,57 @@ function ui() {
       json(res, await testAi(spec));
     },
     // ----- Google Drive (vía rclone: tú autorizas una vez en el navegador; la contraseña nunca pasa por aquí) -----
+    // ----- Películas por guion (Lemo-Opuscar) -----
+    "GET /api/film/styles": (req, res) => json(res, { styles: filmStyles(ROOT), status: filmStatus(ROOT) }),
+    "GET /api/film/poster": (req, res, q) => {
+      const slug = String(q.get("slug") ?? "");
+      const file = path.join(ROOT, "vendor", "lemo-opuscar", "styles", slug, "poster.jpg");
+      if (!/^[a-z0-9-]+$/.test(slug) || !fs.existsSync(file)) notFound();
+      res.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "max-age=86400" });
+      fs.createReadStream(file).pipe(res);
+    },
+    // Paso previo de «video de una canción»: recorta el fragmento, lo transcribe y la IA escribe el guion por escenas.
+    "POST /api/film/song-script": async (req, res) => {
+      const b = await body(req);
+      const client = safeName(b.client ?? "");
+      const track = findTrack(String(b.track ?? ""));
+      if (!track) return json(res, { error: "elige una canción de tu biblioteca" }, 400);
+      const name = slug(b.name || path.basename(track, path.extname(track))).slice(0, 50) || "cancion";
+      const dir = path.join(ROOT, "films", client, name);
+      try {
+        json(res, { ...(await songScript({ file: track, start: b.start, duration: b.duration, projectDir: dir, language: b.language === "en" ? "en" : "es", brand: String(b.brand ?? "").slice(0, 80), topic: String(b.topic ?? "").slice(0, 300), model: b.model })), name });
+      } catch (e) { json(res, { error: e.message }, 500); }
+    },
+    "POST /api/film": async (req, res) => {
+      const b = await body(req);
+      const client = safeName(b.client ?? "");
+      const style = filmStyles(ROOT).find((x) => x.slug === b.style);
+      if (!style) return json(res, { error: "elige un estilo de la lista" }, 400);
+      const script = String(b.script ?? "").trim().slice(0, 6000);
+      if (script.length < 30) return json(res, { error: "escribe el guion (al menos un par de frases)" }, 400);
+      const st = filmStatus(ROOT);
+      if (!st.ready) return json(res, { error: st.hint }, 400);
+      if (parseSpec(b.model).provider !== "claude") return json(res, { error: "Las películas necesitan a Claude como director (es lo que usa Lemo-Opuscar)" }, 400);
+      const name = slug(b.name || style.film || style.slug).slice(0, 50) || "pelicula";
+      const g = {
+        id: `${Date.now().toString(36)}-${name}`, kind: "film", status: "en cola", phase: "En cola", pct: 0, activity: [], createdAt: Date.now(),
+        req: { client, name, style: style.slug, styleName: style.name, script, language: b.language === "en" ? "en" : "es", vertical: b.vertical !== false,
+               seconds: Math.min(120, Math.max(8, Number(b.seconds) || 45)), song: !!b.song, voice: b.song ? false : b.voice !== false, effort: b.effort === "high" ? "high" : "medium", brand: String(b.brand ?? "").slice(0, 80), model: specToString(parseSpec(b.model)) },
+      };
+      startRun(g);
+      json(res, { id: g.id });
+    },
+    // ----- Motion graphics (kit motion-graphics-viegas) -----
+    "GET /api/motion/catalog": (req, res) => json(res, { ...motion.catalog(), status: motion.status() }),
+    "POST /api/motion/preview": async (req, res) => json(res, motion.preview(await body(req))),
+    "POST /api/motion/render": async (req, res) => json(res, motion.render(await body(req))),
+    "POST /api/motion/cancel": async (req, res) => { const b = await body(req); json(res, motion.cancel(b.client, b.name)); },
+    "GET /api/motion/status": (req, res, q) => json(res, motion.jobStatus(q.get("client"), q.get("name"))),
+    "GET /api/motion/sheet": (req, res, q) => {
+      const f = motion.sheetPath(q.get("client"), q.get("name"), q.get("id"));
+      if (!f) notFound();
+      sendFile(res, f, "image/jpeg");
+    },
     "GET /api/drive/status": (req, res) => json(res, driveStatus()),
     "POST /api/drive/upload": async (req, res) => {
       const { paths, folder } = await body(req);
