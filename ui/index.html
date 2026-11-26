@@ -715,6 +715,11 @@ p.warn { color: var(--warn); margin: 0 0 10px; }
 .gu-card .gu-img { aspect-ratio: 16/9; border-radius: 8px; background: var(--panel); overflow: hidden; }
 .gu-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .gu-card small { color: var(--dim); font-size: 11px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+.spots { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 4px; }
+.spot { display: grid; text-align: left; gap: 2px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; color: var(--ink); cursor: pointer; font: inherit; }
+.spot:hover, .spot.on { border-color: var(--accent); } .spot b { font-size: 14px; } .spot small { color: var(--dim); font-size: 11px; }
+.spot.yt { border-color: #4285f4; }
 </style>
 </head>
 <body>
@@ -820,7 +825,9 @@ p.warn { color: var(--warn); margin: 0 0 10px; }
                   <button class="btn" data-beat="-1" title="Beat anterior (←)">◀ beat</button>
                   <button class="btn" data-beat="1" title="Beat siguiente (→)">beat ▶</button>
                   <button class="btn" id="loudest" title="Salta a la parte con más energía (suele ser el coro o el drop)">Ir al coro</button>
+                  <button class="btn" id="suggestSpots" title="Analiza la canción y propone los mejores tramos">🔥 Sugerir los mejores segundos</button>
                 </div>
+                <div class="spots" id="spotsBox" hidden></div>
                 <p class="hint">Mueve el deslizador, escribe el segundo o arrastra la ventana. <kbd>espacio</kbd> escucha · <kbd>←</kbd><kbd>→</kbd> beat a beat · <kbd>⇧</kbd>+<kbd>←</kbd><kbd>→</kbd> ±0.1 s ·
                   <button class="linkbtn" id="saveHook">guardar este inicio para la canción</button> <span id="hookInfo"></span></p>
               </section>
@@ -1210,6 +1217,7 @@ function bindEditor() {
   $("#startRange").onchange = () => { if (state.playing) audio.currentTime = state.start; };
   $("#startNum").onchange = (e) => { setStart(Number(e.target.value), true); if (state.playing) audio.currentTime = state.start; };
   $("#loudest").onclick = () => setStart(loudestWindow());
+  $("#suggestSpots").onclick = () => showHotspots($("#spotsBox"), $("#suggestSpots"), state.track?.id, Math.round(state.dur) || 15, (t) => setStart(t, true));
   $("#saveHook").onclick = saveHook;
   $("#quality").value = localGet("factory.quality") ?? "looks";
   $("#quality").onchange = () => localSet("factory.quality", $("#quality").value);
@@ -1623,13 +1631,26 @@ function drawRunsInto(box) {
     chip.textContent = r.stalled ? "Parece trabado" : bad ? (r.limit ? (reset ? "Listo para continuar" : `Pausado · vuelve ${r.limit.split(" (")[0]}`) : "Sin terminar") : r.status === "en cola" ? "En cola" : `${Math.round(r.pct)}%`;
     chip.classList.add(bad ? (r.limit && !reset ? "on" : reset ? "ok" : "bad") : "on");
     if (!bad) $(".progress div", row).style.width = `${r.pct}%`;
+    const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 90 ? `${s} s` : `${Math.round(s / 60)} min`; };
+    const debug = !bad && r.status === "trabajando" ? `${r.alive ? "🟢 Activo" : "🔴 Sin proceso"}${r.updatedAt ? ` · última señal hace ${ago(r.updatedAt)}` : ""}${r.startedAt ? ` · lleva ${ago(r.startedAt)}` : ""}${r.last ? ` · ${r.last.slice(0, 60)}` : ""}` : "";
     $(".hint", row).textContent = bad ? (r.limit ? (reset ? "Tu plan de Claude ya debería haberse reiniciado. Lo hecho está guardado: pulsa «Continuar con Claude»." : "Tu plan de Claude llegó a su límite. Lo hecho está guardado.") : (r.error ?? "")) : r.phase ?? "";
     const acts = $(".rr-actions", row);
+    if (debug) row.insertAdjacentHTML("beforeend", '<span class="hint rr-debug"></span>'), ($(".rr-debug", row).textContent = debug);
     if (bad || r.stalled) {
       const mk = (label, fn, primary) => { const b = document.createElement("button"); b.className = "btn" + (primary ? " primary" : ""); b.textContent = label; b.onclick = fn; acts.append(b); };
-      if (r.kind !== "lyrics" && bad) mk("Continuar con Claude", async () => { try { await api("/api/generate/continue", { id: r.id, model: localGet("factory.model") ?? "sonnet" }); toast("Claude continúa…"); pollRuns(); } catch (e) { toast(e.message, true); } }, true);
-      if (r.kind !== "lyrics" && bad) mk("Renderizar como está", () => renderAsIs(r, false));
+      if (r.canResume) mk("▶ Continuar la película", async () => { try { await api("/api/film/continue", { id: r.id }); toast("Retomando la película…"); pollRuns(); } catch (e) { toast(e.message, true); } }, true);
+      if (r.kind !== "lyrics" && r.kind !== "film" && bad) mk("Continuar con Claude", async () => { try { await api("/api/generate/continue", { id: r.id, model: localGet("factory.model") ?? "sonnet" }); toast("Claude continúa…"); pollRuns(); } catch (e) { toast(e.message, true); } }, true);
+      if (r.kind !== "lyrics" && r.kind !== "film" && bad) mk("Renderizar como está", () => renderAsIs(r, false));
       mk("Descartar", async () => { try { await api("/api/runs/dismiss", { id: r.id }); pollRuns(); } catch (e) { toast(e.message, true); } });
+    }
+    if (!bad) {
+      const b = document.createElement("button"); b.className = "btn danger"; b.textContent = r.status === "en cola" ? "✕ Quitar de la cola" : "✕ Cancelar";
+      b.onclick = async () => {
+        if (!confirm(`¿Cancelar «${r.name}»? Se detiene ahora; lo que ya se hizo queda guardado.`)) return;
+        b.disabled = true; b.textContent = "Cancelando…";
+        try { await api("/api/runs/cancel", { id: r.id }); toast("Proceso cancelado"); pollRuns(); } catch (e) { toast(e.message, true); b.disabled = false; b.textContent = "✕ Cancelar"; }
+      };
+      acts.append(b);
     }
     box.append(row);
   }
@@ -2618,13 +2639,45 @@ function renderVideosSide() {
 
 
 
+
+// Sugerir los mejores tramos de una canción (audio fuerte y repetido; y lo más reproducido en YouTube si hay datos).
+async function showHotspots(box, btn, trackId, len, onPick) {
+  if (!trackId) return toast("Elige primero una canción.", true);
+  const old = btn.textContent; btn.disabled = true; btn.textContent = "Analizando la canción…"; box.hidden = false; box.innerHTML = '<span class="hint">Escuchando la canción…</span>';
+  try {
+    const r = await api(`/api/track/hotspots?id=${enc(trackId)}&len=${len}`);
+    box.innerHTML = "";
+    if (!r.spots.length) { box.innerHTML = '<span class="hint">No encontré tramos claros.</span>'; return; }
+    for (const sp of r.spots) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "spot" + (sp.source === "youtube" ? " yt" : "");
+      b.innerHTML = `<b>${mmss(sp.start)}–${mmss(sp.start + len)}</b><small></small>`; $("small", b).textContent = sp.label;
+      b.onclick = () => { onPick(sp.start); $$(".spot", box).forEach((x) => x.classList.toggle("on", x === b)); };
+      box.append(b);
+    }
+    if (r.youtube === false) box.insertAdjacentHTML("beforeend", '<span class="hint">«Lo más reproducido» solo está disponible en canciones bajadas de YouTube. Spotify no publica ese dato.</span>');
+    else if (r.youtube === "sin-datos") box.insertAdjacentHTML("beforeend", '<span class="hint">YouTube no tiene datos de «lo más reproducido» para esta canción.</span>');
+  } catch (e) { box.innerHTML = ""; box.hidden = true; toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = old; }
+}
+
 // ===================== Guion → película (Lemo-Opuscar: 99 estilos hechos en código) =====================
 const gu = { data: null, cat: "", style: null };
 async function renderGuion() {
   const v = $("#v-guion");
   v.innerHTML = `<div class="page-h"><div><span class="eyebrow">Películas</span><h1>De un guion a una película</h1><p class="hint" style="margin:6px 0 0;max-width:660px">Escribe o pega tu guion, elige uno de los 99 estilos (acuarela, noticiero, pizarra, neón…) y la IA dirige, dibuja, narra y musicaliza una película entera, hecha en código.</p></div></div>
     <div id="guWarn"></div>
-    <section class="card2 gu-brief"><div class="wz-card-h"><h3>1 · Tu guion</h3><span class="hint" id="guCount"></span></div>
+    <div class="chips" id="guMode" style="margin-bottom:12px"><button class="pillbtn on" data-m="text">✍ Ya tengo el guion</button><button class="pillbtn" data-m="song">🎵 Desde una canción</button></div>
+    <section class="card2" id="guSong" hidden style="margin-bottom:14px"><div class="wz-card-h"><h3>A · La canción y el fragmento</h3><button class="linkbtn" data-go="musica">Buscar o descargar en Spotify / YouTube →</button></div>
+      <div class="row"><label class="field" style="flex:2;min-width:220px">Canción de tu biblioteca<select id="guTrack"></select></label>
+        <label class="field">Desde el segundo<input id="guStart" type="number" min="0" value="0" /></label>
+        <label class="field">Duración (s)<input id="guSDur" type="number" min="8" max="120" value="40" /></label>
+        <button class="btn" id="guHear" type="button" style="align-self:end">▶ Escuchar el fragmento</button>
+        <button class="btn" id="guSpots" type="button" style="align-self:end">🔥 Sugerir los mejores segundos</button></div>
+      <div class="spots" id="guSpotsBox" hidden></div>
+      <div class="row" style="margin-top:10px"><label class="field" style="flex:1;min-width:260px">Idea o tema del video <small>(opcional)</small><input id="guTopic" placeholder="Ej.: una noche de fiesta en la ciudad" /></label>
+        <button class="btn primary" id="guMake" type="button" style="align-self:end">✨ Armar el guion con la IA</button></div>
+      <p class="hint" id="guSongMsg" style="margin:8px 0 0">La IA escucha el fragmento, saca la letra y propone las escenas. Después puedes corregir el guion antes de hacer la película.</p></section>
+    <section class="card2 gu-brief"><div class="wz-card-h"><h3 id="guH1">1 · Tu guion</h3><span class="hint" id="guCount"></span></div>
       <textarea id="guScript" rows="9" placeholder="Escena 1: …&#10;Escena 2: …&#10;(Cada párrafo o línea será una escena. Mejor claro y corto.)"></textarea>
       <div class="row" style="margin-top:12px"><label class="field">Cliente<select id="guClient"></select></label><label class="field">Nombre<input id="guName" placeholder="mi-pelicula" /></label>
         <label class="field">Idioma<select id="guLang"><option value="es">Español</option><option value="en">Inglés</option></select></label>
@@ -2645,6 +2698,34 @@ async function renderGuion() {
   const sc = $("#guScript"); sc.oninput = () => ($("#guCount").textContent = `${sc.value.length} / 6000`);
   drawGuionStyles();
   $("#guGo").onclick = startFilm;
+  gu.mode = "text";
+  $("#guTrack").innerHTML = state.tracks.map((t) => `<option value="${esc(t.id)}">${esc(t.artist ? t.artist + " — " : "")}${esc(t.title ?? t.id)} (${mmss(t.duration)})</option>`).join("");
+  $$("#guMode button").forEach((b) => (b.onclick = () => {
+    gu.mode = b.dataset.m; $$("#guMode button").forEach((x) => x.classList.toggle("on", x === b));
+    $("#guSong").hidden = gu.mode !== "song"; $("#guH1").textContent = gu.mode === "song" ? "B · El guion (revísalo y corrígelo)" : "1 · Tu guion";
+    for (const id of ["guSec", "guVoice"]) { const l = $("#" + id).closest("label"); if (l) l.hidden = gu.mode === "song"; }
+  }));
+  const hear = new Audio();
+  $("#guHear").onclick = () => {
+    if (!hear.paused) { hear.pause(); $("#guHear").textContent = "▶ Escuchar el fragmento"; return; }
+    hear.src = "/api/audio?id=" + enc($("#guTrack").value); hear.currentTime = Number($("#guStart").value) || 0; hear.play().catch(() => {}); $("#guHear").textContent = "⏸ Parar";
+    clearTimeout(hear._t); hear._t = setTimeout(() => { hear.pause(); $("#guHear").textContent = "▶ Escuchar el fragmento"; }, (Number($("#guSDur").value) || 40) * 1000);
+  };
+  $("#guSpots").onclick = () => showHotspots($("#guSpotsBox"), $("#guSpots"), $("#guTrack").value, Number($("#guSDur").value) || 40, (t) => { $("#guStart").value = Math.round(t); });
+  $("#guMake").onclick = async () => {
+    const name = $("#guName").value.trim() || slug($("#guTrack").value).slice(0, 40);
+    if (!$("#guClient").value) return toast("Primero crea un cliente.", true);
+    if (!$("#guTrack").value) return toast("No hay canciones en tu biblioteca: añade una desde Música.", true);
+    hear.pause(); $("#guHear").textContent = "▶ Escuchar el fragmento";
+    const btn = $("#guMake"), msg = $("#guSongMsg"); btn.disabled = true; btn.textContent = "Escuchando y escribiendo… (1–2 min)"; msg.textContent = "Recortando el fragmento, sacando la letra y escribiendo las escenas…";
+    try {
+      const r = await api("/api/film/song-script", { client: $("#guClient").value, name, track: $("#guTrack").value, start: Number($("#guStart").value) || 0, duration: Number($("#guSDur").value) || 40, language: $("#guLang").value, topic: $("#guTopic").value.trim(), brand: $("#guClient").value, model: state.ai?.text });
+      $("#guScript").value = r.script; $("#guScript").oninput(); gu.songName = r.name; gu.songSec = r.duration; $("#guName").value = r.name;
+      msg.textContent = `Listo: ${r.scenes} escenas para ${r.duration} s${r.words ? "" : " (no se entendió letra: la IA se basó en el tema)"}. Corrige lo que quieras y elige el estilo.`;
+      $("#guScript").scrollIntoView({ behavior: "smooth", block: "center" });
+    } catch (e) { msg.textContent = e.message; toast(e.message, true); }
+    btn.disabled = false; btn.textContent = "✨ Armar el guion con la IA";
+  };
 }
 function drawGuionStyles() {
   const { styles } = gu.data, cats = ["", ...new Set(styles.map((x) => x.category))], box = $("#guCats");
@@ -2670,7 +2751,8 @@ async function startFilm() {
   if (x.needsImages && !confirm(`«${x.name}» dibuja con un generador de imágenes que tienes que aportar (por ejemplo Codex). ¿Seguir de todos modos?`)) return;
   $("#guGo").disabled = true; $("#guMsg").textContent = "";
   try {
-    const { id } = await api("/api/film", { client: $("#guClient").value, name: name || x.film, style: gu.style, script, language: $("#guLang").value, vertical: $("#guFmt").value === "v", seconds: Number($("#guSec").value) || 45, voice: $("#guVoice").checked, model: $("#guModel").value, effort: $("#guEffort").value });
+    if (gu.mode === "song" && !gu.songName) { $("#guHear")?.scrollIntoView({ block: "center" }); $("#guGo").disabled = false; return toast("Primero arma el guion con la IA a partir del fragmento.", true); }
+    const { id } = await api("/api/film", { client: $("#guClient").value, name: gu.mode === "song" ? gu.songName : (name || x.film), song: gu.mode === "song", style: gu.style, script, language: $("#guLang").value, vertical: $("#guFmt").value === "v", seconds: gu.mode === "song" ? gu.songSec : (Number($("#guSec").value) || 45), voice: $("#guVoice").checked, model: $("#guModel").value, effort: $("#guEffort").value });
     const box = $("#guRun"); box.hidden = false; $("#guRes").innerHTML = ""; $("#guBar").style.width = "0"; box.scrollIntoView({ behavior: "smooth", block: "nearest" });
     const r = await pollRun(id, { bar: $("#guBar"), status: $("#guSt"), time: $("#guTm"), act: $("#guAct") });
     $("#guSt").textContent = "¡Película lista!"; await loadVideos().catch(() => {});
@@ -2725,7 +2807,7 @@ function openMotion(id) {
     <div class="row"><label class="field">Cliente<select id="moClient"></select></label><label class="field">Nombre de la pieza<input id="moName" placeholder="oferta-fin-de-semana" /></label>
       <label class="field">Calidad<select id="moQ"><option value="previa">Rápida · 1080p 30 fps</option><option value="hd">Redes · 1080p 60 fps (más lenta)</option></select></label></div>
     <div class="mo-fields" id="moFields"></div>
-    <div class="row" style="margin-top:14px"><button class="btn" id="moPrev" type="button">👁 Vista previa</button><button class="btn primary" id="moGo" type="button">🎬 Crear el video</button><span class="hint" id="moMsg"></span></div>
+    <div class="row" style="margin-top:14px"><button class="btn" id="moPrev" type="button">👁 Vista previa</button><button class="btn primary" id="moGo" type="button">🎬 Crear el video</button><button class="btn danger" id="moStop" type="button" hidden>✕ Cancelar</button><span class="hint" id="moMsg"></span></div>
     <div id="moOut"></div></section>`;
   $("h3", box).textContent = t.nombre; $(".hint", box).textContent = t.descripcion;
   $("#moClient").innerHTML = state.clients.map((c) => `<option${c === state.client ? " selected" : ""}>${esc(c)}</option>`).join("");
@@ -2751,18 +2833,19 @@ function openMotion(id) {
   const run = async (kind) => {
     let b; try { b = body(); } catch (e) { return toast(e.message, true); }
     $("#moPrev").disabled = $("#moGo").disabled = true; $("#moOut").innerHTML = "";
-    try { await api(`/api/motion/${kind}`, b); pollMotion(b, kind); } catch (e) { toast(e.message, true); $("#moPrev").disabled = $("#moGo").disabled = false; }
+    try { await api(`/api/motion/${kind}`, b); $("#moStop").hidden = false; $("#moStop").onclick = async () => { try { await api("/api/motion/cancel", { client: b.client, name: b.name }); } catch (e) { toast(e.message, true); } }; pollMotion(b, kind); } catch (e) { toast(e.message, true); $("#moPrev").disabled = $("#moGo").disabled = false; }
   };
   $("#moPrev").onclick = () => run("preview"); $("#moGo").onclick = () => run("render");
 }
 function pollMotion(b, kind) {
   clearInterval(mo.timer); const msg = $("#moMsg"), out = $("#moOut"), t0 = Date.now();
-  const done = () => { clearInterval(mo.timer); if ($("#moPrev")) $("#moPrev").disabled = $("#moGo").disabled = false; };
+  const done = () => { clearInterval(mo.timer); if ($("#moPrev")) { $("#moPrev").disabled = $("#moGo").disabled = false; $("#moStop").hidden = true; } };
   const tick = async () => {
     let st; try { st = await api(`/api/motion/status?client=${enc(b.client)}&name=${enc(b.name)}`); } catch { return; }
     if (!$("#moMsg")) return clearInterval(mo.timer);
     if (st.status === "trabajando") { const last = (st.log ?? "").trim().split("\n").pop() ?? ""; msg.textContent = `${kind === "preview" ? "Preparando la vista previa" : "Creando el video"}… ${Math.round((Date.now() - t0) / 1000)} s ${last ? "· " + last.slice(0, 70) : ""}`; return; }
     done();
+    if (st.status === "cancelado") { done(); msg.textContent = "Cancelado."; return; }
     if (st.status === "falló") { msg.textContent = ""; out.innerHTML = '<pre class="log"></pre>'; $("pre", out).textContent = st.error ?? "No se pudo terminar"; return; }
     if (st.status !== "listo") return;
     if (st.kind === "preview") { msg.textContent = "Así se verá, en 6 momentos de la animación:"; out.innerHTML = `<img class="mo-sheet" alt="Vista previa" src="/api/motion/sheet?client=${enc(b.client)}&name=${enc(b.name)}&id=${enc(b.id)}&t=${Date.now()}" />`; }
