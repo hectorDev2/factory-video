@@ -35,11 +35,17 @@ function findChrome() {
   try {
     for (const f of fs.readdirSync(base, { recursive: true })) {
       const full = path.join(base, String(f));
-      if (path.basename(full) === "chrome-headless-shell" && fs.statSync(full).isFile()) return { bin: full, shell: true };
+      // En Windows el binario lleva .exe: sin esto nunca se encontraba el que instala `npx hyperframes browser`.
+      if (/^chrome-headless-shell(\.exe)?$/i.test(path.basename(full)) && fs.statSync(full).isFile()) return { bin: full, shell: true };
     }
   } catch {}
-  const mac = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-  if (fs.existsSync(mac)) return { bin: mac, shell: false };
+  // Respaldo: el Chrome (o Edge, que también es Chromium) instalado en el sistema.
+  const pf = [process.env.PROGRAMFILES, process.env["PROGRAMFILES(X86)"], process.env.LOCALAPPDATA].filter(Boolean);
+  const candidates = process.platform === "win32"
+    ? pf.flatMap((d) => [path.join(d, "Google", "Chrome", "Application", "chrome.exe"), path.join(d, "Microsoft", "Edge", "Application", "msedge.exe")])
+    : ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"];
+  const sys = candidates.find((f) => fs.existsSync(f));
+  if (sys) return { bin: sys, shell: false };
   throw new Error("No encuentro Chrome. Instálalo con: npx hyperframes browser");
 }
 
