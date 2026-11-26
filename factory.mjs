@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { FORMAT_IDS, PLATFORMS, readCopy, writeCopy, previewPlan } from "./generate.mjs";
 import { LYRIC_STYLES, LYRIC_FONTS, LYRIC_POSITIONS } from "./lyrics.mjs";
 import { captureSite, normalizeUrl } from "./site.mjs";
+import { createTikTok } from "./tiktok.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = path.join(ROOT, "templates");
@@ -118,7 +119,29 @@ function render() {
 
 function ui() {
   const port = Number(flags.port ?? 4600);
+  // La URL de redirección tiene que coincidir EXACTA con la registrada en TikTok for Developers (Login Kit → Desktop).
+  const tiktok = createTikTok({ dir: path.join(ROOT, "social"), outputDir: OUTPUT, redirectUri: `http://localhost:${port}/api/tiktok/callback/` });
+  const tiktokCallback = async (req, res, q) => {
+    let ok = true, msg;
+    try { const u = await tiktok.callback(q); msg = `Cuenta vinculada${u?.name ? `: ${u.name}` : ""}.`; }
+    catch (e) { ok = false; msg = e.message; }
+    const safe = msg.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    res.writeHead(ok ? 200 : 400, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    res.end(`<!doctype html><meta charset="utf-8"><title>TikTok</title><body style="font:15px system-ui;background:#111;color:#eee;display:grid;place-items:center;height:100vh;margin:0">
+      <div style="text-align:center;max-width:460px"><h2>${ok ? "✅ Listo" : "⚠️ No se pudo vincular"}</h2><p>${safe}</p><p><a style="color:#ff5e62" href="/">Volver a la factory</a></p></div>
+      <script>try { window.opener && window.opener.postMessage("tiktok-linked", "*"); } catch {} ${ok ? "setTimeout(() => window.close(), 1500);" : ""}</script>`);
+  };
   const routes = {
+    "GET /api/tiktok/status": (req, res) => json(res, tiktok.status()),
+    "POST /api/tiktok/app": async (req, res) => json(res, tiktok.configure(await body(req))),
+    "POST /api/tiktok/auth": (req, res) => json(res, { url: tiktok.authUrl() }),
+    "GET /api/tiktok/callback/": tiktokCallback,
+    "GET /api/tiktok/callback": tiktokCallback,
+    "POST /api/tiktok/unlink": async (req, res) => json(res, await tiktok.unlink()),
+    "GET /api/tiktok/queue": (req, res) => json(res, { items: tiktok.queue() }),
+    "POST /api/tiktok/schedule": async (req, res) => json(res, { item: tiktok.schedule(await body(req)) }),
+    "POST /api/tiktok/remove": async (req, res) => json(res, tiktok.remove((await body(req)).id)),
+    "POST /api/tiktok/retry": async (req, res) => json(res, tiktok.retry((await body(req)).id)),
     "GET /": (req, res) => sendFile(res, path.join(ROOT, "ui", "index.html"), "text/html; charset=utf-8"),
     "GET /api/version": (req, res) => json(res, { version: BOOT, ui: fs.statSync(path.join(ROOT, "ui", "index.html")).mtimeMs }),
     "GET /api/state": (req, res) => json(res, {
@@ -692,6 +715,7 @@ print(json.dumps(out))`, query], { encoding: "utf8", timeout: 30000 });
     }
   }).listen(port, "127.0.0.1", () => {
     console.log(`Factory UI → http://localhost:${port}  (Ctrl+C para cerrar)`);
+    tiktok.start(); // cola de envíos programados a TikTok
     // Precalienta lo lento (herramientas, duración de canciones) para que la primera carga sea rápida.
     setImmediate(() => { try { toolStatus(); sfxStatus(); trackNames().forEach((id) => probeDuration(findTrack(id))); } catch {} });
   });
