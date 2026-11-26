@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reels Lyrics · Video Factory</title>
+<meta name="description" content="Convierte cualquier video en un reel vertical con subtítulos animados que siguen el ritmo, en español e inglés. Corre en tu computadora." />
+<style>
+  :root { --bg: #0d0f12; --panel: #15181d; --line: #262a31; --ink: #f2f1ee; --dim: #9a9ca5; --coral: #ff5e62; --violet: #8a3ffc; --grad: linear-gradient(135deg, #ff5e62, #8a3ffc); }
+  @media (prefers-color-scheme: light) { :root { --bg: #fbfaf8; --panel: #ffffff; --line: #e6e4df; --ink: #17181c; --dim: #5f626c; } }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  a { color: inherit; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.01em; text-decoration: none; }
+  .logo i { width: 30px; height: 30px; border-radius: 9px; background: var(--grad); display: grid; place-items: center; color: #fff; font-style: normal; font-size: 13px; }
+  nav .links { display: flex; gap: 20px; font-size: 14px; color: var(--dim); }
+  nav .links a { text-decoration: none; } nav .links a:hover { color: var(--ink); }
+  .btn { display: inline-block; padding: 13px 22px; border-radius: 12px; font-weight: 700; text-decoration: none; background: var(--grad); color: #fff; border: 0; }
+  .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+  .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; padding: 48px 0 72px; }
+  h1 { font-size: clamp(34px, 5.4vw, 58px); line-height: 1.05; letter-spacing: -.03em; margin: 0 0 18px; }
+  h1 span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lead { font-size: 19px; color: var(--dim); max-width: 520px; margin: 0 0 28px; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .small { color: var(--dim); font-size: 13px; margin-top: 16px; }
+
+  /* teléfono con subtítulos animados (solo CSS) */
+  .phone { justify-self: center; width: min(280px, 72vw); aspect-ratio: 9/16; border-radius: 34px; padding: 10px; background: #000; border: 1px solid var(--line); box-shadow: 0 30px 80px rgba(138,63,252,.25); }
+  .screen { position: relative; width: 100%; height: 100%; border-radius: 26px; overflow: hidden; background: radial-gradient(120% 80% at 30% 20%, #3a1d6e, #14101f 60%, #0b0b10); }
+  .screen::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,.55)); }
+  .line { position: absolute; left: 0; right: 0; text-align: center; font-weight: 900; font-size: 23px; line-height: 1.15; padding: 0 16px; text-transform: uppercase; letter-spacing: -.01em; opacity: 0; text-shadow: 0 3px 14px rgba(0,0,0,.6); }
+  .line b { color: var(--coral); }
+  .l1 { top: 52%; animation: a1 9s infinite; } .l2 { top: 20%; animation: a2 9s infinite; } .l3 { top: 62%; animation: a3 9s infinite; }
+  @keyframes a1 { 0% { opacity: 0; transform: translateY(24px); } 6%, 28% { opacity: 1; transform: none; } 34%, 100% { opacity: 0; filter: blur(6px); } }
+  @keyframes a2 { 0%, 33% { opacity: 0; transform: scale(.7); } 40%, 61% { opacity: 1; transform: none; } 67%, 100% { opacity: 0; transform: translateX(-40px); } }
+  @keyframes a3 { 0%, 66% { opacity: 0; filter: blur(10px); } 73%, 94% { opacity: 1; filter: none; } 100% { opacity: 0; transform: scale(.85); } }
+  .tag { position: absolute; top: 14px; left: 14px; z-index: 2; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 99px; background: rgba(255,255,255,.14); color: #fff; }
+
+  section { padding: 56px 0; }
+  .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--coral); }
+  h2 { font-size: clamp(26px, 3.6vw, 38px); line-height: 1.1; letter-spacing: -.02em; margin: 8px 0 28px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
+  .card h3 { margin: 10px 0 6px; font-size: 18px; } .card p { margin: 0; color: var(--dim); font-size: 15px; }
+  .ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 18px; background: rgba(138,63,252,.16); }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; counter-reset: s; }
+  .step { position: relative; padding-top: 44px; }
+  .step::before { counter-increment: s; content: counter(s); position: absolute; top: 0; left: 0; width: 32px; height: 32px; border-radius: 50%; background: var(--grad); color: #fff; font-weight: 800; display: grid; place-items: center; }
+  .step b { display: block; margin-bottom: 4px; } .step span { color: var(--dim); font-size: 15px; }
+  .fx { display: flex; flex-wrap: wrap; gap: 8px; }
+  .fx span { padding: 7px 14px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel); font-size: 14px; }
+  .band { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; padding: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .band ul { margin: 0; padding-left: 20px; color: var(--dim); } .band li { margin: 6px 0; }
+  .final { text-align: center; padding: 72px 0; }
+  .final .lead { margin: 0 auto 26px; }
+  footer { border-top: 1px solid var(--line); padding: 26px 0 40px; color: var(--dim); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: space-between; }
+  footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
+  @media (max-width: 820px) {
+    .hero, .band { grid-template-columns: 1fr; } .grid { grid-template-columns: 1fr; } .steps { grid-template-columns: 1fr 1fr; }
+    nav .links { display: none; } .hero { padding-top: 24px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .line { animation: none; opacity: 1; position: static; padding: 6px 16px; } .screen { display: flex; flex-direction: column; justify-content: center; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="logo" href="#"><i>▶</i> Reels Lyrics</a>
+    <div class="links"><a href="#como">Cómo funciona</a><a href="#efectos">Efectos</a><a href="#requisitos">Requisitos</a><a href="https://github.com/hectorDev2/factory-video">GitHub</a></div>
+  </nav>
+
+  <header class="hero">
+    <div>
+      <h1>Subtítulos que <span>bailan</span> al ritmo de tu video.</h1>
+      <p class="lead">Sube un video o descarga uno, elige el fragmento y obtén un reel vertical con la letra animada, en español o inglés, listo para Reels, Stories o TikTok.</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/hectorDev2/factory-video#readme">Empezar</a>
+        <a class="btn ghost" href="#como">Ver cómo funciona</a>
+      </div>
+      <p class="small">Corre en tu propia computadora. Tus videos no se suben a ningún servidor nuestro.</p>
+    </div>
+    <div class="phone" aria-hidden="true">
+      <div class="screen">
+        <span class="tag">ES · EN</span>
+        <div class="line l1">Todo cambia cuando <b>suena</b></div>
+        <div class="line l2">cada palabra <b>cae</b> en su beat</div>
+        <div class="line l3">y tu <b>reel</b> queda listo</div>
+      </div>
+    </div>
+  </header>
+
+  <section id="que">
+    <div class="eyebrow">Qué hace</div>
+    <h2>De un video cualquiera a un reel que se queda en la cabeza.</h2>
+    <div class="grid">
+      <div class="card"><div class="ic">🎯</div><h3>Sincronizado de verdad</h3><p>Detecta cuándo se dice cada palabra con reconocimiento de voz local, para que el texto aparezca justo a tiempo.</p></div>
+      <div class="card"><div class="ic">🌎</div><h3>Español e inglés</h3><p>Corrige errores de la letra y la traduce. Una IA a tu elección (Claude, ChatGPT o Gemini) revisa el texto.</p></div>
+      <div class="card"><div class="ic">✨</div><h3>Subtítulos dinámicos</h3><p>Cambian de lugar, de efecto y de color según la energía y la velocidad de la voz, y resaltan la palabra clave de cada verso.</p></div>
+      <div class="card"><div class="ic">⏱️</div><h3>Duración exacta</h3><p>Reel de hasta 90 s o Story de 60 s. Eliges un fragmento o subtitulas el video completo.</p></div>
+      <div class="card"><div class="ic">📥</div><h3>Descarga y recorta</h3><p>Pega un enlace de YouTube o de una red social, elige el tramo que quieres y la fábrica hace el resto.</p></div>
+      <div class="card"><div class="ic">📤</div><h3>Listo para publicar</h3><p>Envía los reels a Google Drive o déjalos como borrador en TikTok para publicarlos desde la app.</p></div>
+    </div>
+  </section>
+
+  <section id="como">
+    <div class="eyebrow">Cómo funciona</div>
+    <h2>Cuatro pasos, sin editar nada a mano.</h2>
+    <div class="steps">
+      <div class="step"><b>Elige el video</b><span>Súbelo o pega un enlace y marca el fragmento.</span></div>
+      <div class="step"><b>Escoge el estilo</b><span>Efecto, idioma, red social y duración exacta.</span></div>
+      <div class="step"><b>La fábrica trabaja</b><span>Transcribe, corrige, traduce y anima. Ves el avance en vivo.</span></div>
+      <div class="step"><b>Descarga o envía</b><span>MP4 vertical 1080×1920, a tu carpeta o a Drive.</span></div>
+    </div>
+  </section>
+
+  <section id="efectos">
+    <div class="eyebrow">Efectos</div>
+    <h2>Entradas y salidas que cambian en cada verso.</h2>
+    <div class="fx">
+      <span>⬆️ Sube</span><span>⬅️ Entra por la izquierda</span><span>➡️ Entra por la derecha</span><span>🔍 Zoom</span><span>⬇️ Cae</span><span>🌫️ Entra desenfocado</span>
+      <span>🌅 Se desvanece</span><span>💨 Sale borroso</span><span>↔️ Se desliza</span><span>🔻 Se encoge</span><span>💥 Se dispersa</span><span>🔑 Palabra clave resaltada</span>
+    </div>
+  </section>
+
+  <section id="requisitos">
+    <div class="band">
+      <div>
+        <div class="eyebrow">Requisitos</div>
+        <h2 style="margin-bottom:12px">Funciona en tu computadora.</h2>
+        <p style="color:var(--dim);margin:0">Probado en Mac con Apple Silicon y 8 GB de memoria. No necesitas cuentas de HyperFrames ni de ninguna red social.</p>
+      </div>
+      <ul>
+        <li>Node.js 22 o superior</li>
+        <li>ffmpeg y yt-dlp</li>
+        <li>Una IA con sesión iniciada: Claude, ChatGPT o Gemini</li>
+        <li>Unos 10 GB libres para las herramientas y modelos</li>
+        <li>Opcional: rclone para Google Drive</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="final">
+    <h2>Haz tu primer reel hoy.</h2>
+    <p class="lead">Instala, abre la interfaz en tu navegador y sube tu primer video.</p>
+    <a class="btn" href="https://github.com/hectorDev2/factory-video#readme">Ver la guía de instalación</a>
+  </section>
+
+  <footer>
+    <span>© Reels Lyrics · Video Factory</span>
+    <span><a href="privacy.html">Privacidad</a> · <a href="terms.html">Términos</a> · <a href="https://github.com/hectorDev2/factory-video">GitHub</a></span>
+  </footer>
+</div>
+</body>
+</html>
