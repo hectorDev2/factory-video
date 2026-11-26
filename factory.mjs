@@ -23,6 +23,8 @@ import { fileURLToPath } from "node:url";
 import { FORMAT_IDS, PLATFORMS, readCopy, writeCopy, previewPlan } from "./generate.mjs";
 import { LYRIC_STYLES, LYRIC_FONTS, LYRIC_POSITIONS } from "./lyrics.mjs";
 import { captureSite, normalizeUrl } from "./site.mjs";
+import { createMotion } from "./motion.mjs";
+import { filmStyles, filmStatus } from "./film.mjs";
 import { createTikTok } from "./tiktok.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -121,6 +123,7 @@ function render() {
 function ui() {
   const port = Number(flags.port ?? 4600);
   // La URL de redirección tiene que coincidir EXACTA con la registrada en TikTok for Developers (Login Kit → Desktop).
+  const motion = createMotion({ root: ROOT, output: OUTPUT });
   const tiktok = createTikTok({ dir: path.join(ROOT, "social"), outputDir: OUTPUT, redirectUri: `http://localhost:${port}/api/tiktok/callback/` });
   const tiktokCallback = async (req, res, q) => {
     let ok = true, msg;
@@ -587,6 +590,7 @@ function ui() {
       const patch = {};
       if (b.text !== undefined) patch.text = specToString(parseSpec(b.text));
       if (typeof b.geminiKey === "string") patch.geminiKey = b.geminiKey.trim().slice(0, 200);
+      if (typeof b.junieKey === "string") patch.junieKey = b.junieKey.trim().slice(0, 300);
       saveConfig(patch);
       json(res, { ok: true, ai: aiStatus() });
     },
@@ -595,6 +599,44 @@ function ui() {
       json(res, await testAi(spec));
     },
     // ----- Google Drive (vía rclone: tú autorizas una vez en el navegador; la contraseña nunca pasa por aquí) -----
+    // ----- Películas por guion (Lemo-Opuscar) -----
+    "GET /api/film/styles": (req, res) => json(res, { styles: filmStyles(ROOT), status: filmStatus(ROOT) }),
+    "GET /api/film/poster": (req, res, q) => {
+      const slug = String(q.get("slug") ?? "");
+      const file = path.join(ROOT, "vendor", "lemo-opuscar", "styles", slug, "poster.jpg");
+      if (!/^[a-z0-9-]+$/.test(slug) || !fs.existsSync(file)) notFound();
+      res.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "max-age=86400" });
+      fs.createReadStream(file).pipe(res);
+    },
+    "POST /api/film": async (req, res) => {
+      const b = await body(req);
+      const client = safeName(b.client ?? "");
+      const style = filmStyles(ROOT).find((x) => x.slug === b.style);
+      if (!style) return json(res, { error: "elige un estilo de la lista" }, 400);
+      const script = String(b.script ?? "").trim().slice(0, 6000);
+      if (script.length < 30) return json(res, { error: "escribe el guion (al menos un par de frases)" }, 400);
+      const st = filmStatus(ROOT);
+      if (!st.ready) return json(res, { error: st.hint }, 400);
+      if (parseSpec(b.model).provider !== "claude") return json(res, { error: "Las películas necesitan a Claude como director (es lo que usa Lemo-Opuscar)" }, 400);
+      const name = slug(b.name || style.film || style.slug).slice(0, 50) || "pelicula";
+      const g = {
+        id: `${Date.now().toString(36)}-${name}`, kind: "film", status: "en cola", phase: "En cola", pct: 0, activity: [], createdAt: Date.now(),
+        req: { client, name, style: style.slug, styleName: style.name, script, language: b.language === "en" ? "en" : "es", vertical: b.vertical !== false,
+               seconds: Math.min(120, Math.max(20, Number(b.seconds) || 45)), voice: b.voice !== false, effort: b.effort === "high" ? "high" : "medium", brand: String(b.brand ?? "").slice(0, 80), model: specToString(parseSpec(b.model)) },
+      };
+      startRun(g);
+      json(res, { id: g.id });
+    },
+    // ----- Motion graphics (kit motion-graphics-viegas) -----
+    "GET /api/motion/catalog": (req, res) => json(res, { ...motion.catalog(), status: motion.status() }),
+    "POST /api/motion/preview": async (req, res) => json(res, motion.preview(await body(req))),
+    "POST /api/motion/render": async (req, res) => json(res, motion.render(await body(req))),
+    "GET /api/motion/status": (req, res, q) => json(res, motion.jobStatus(q.get("client"), q.get("name"))),
+    "GET /api/motion/sheet": (req, res, q) => {
+      const f = motion.sheetPath(q.get("client"), q.get("name"), q.get("id"));
+      if (!f) notFound();
+      sendFile(res, f, "image/jpeg");
+    },
     "GET /api/drive/status": (req, res) => json(res, driveStatus()),
     "POST /api/drive/upload": async (req, res) => {
       const { paths, folder } = await body(req);

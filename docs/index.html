@@ -30,15 +30,15 @@
   /* teléfono con subtítulos animados (solo CSS) */
   .phone { justify-self: center; width: min(280px, 72vw); aspect-ratio: 9/16; border-radius: 34px; padding: 10px; background: #000; border: 1px solid var(--line); box-shadow: 0 30px 80px rgba(138,63,252,.25); }
   .screen { position: relative; width: 100%; height: 100%; border-radius: 26px; overflow: hidden; background: radial-gradient(120% 80% at 30% 20%, #3a1d6e, #14101f 60%, #0b0b10); }
-  .screen::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,.55)); }
-  .line { position: absolute; left: 0; right: 0; text-align: center; font-weight: 900; font-size: 23px; line-height: 1.15; padding: 0 16px; text-transform: uppercase; letter-spacing: -.01em; opacity: 0; text-shadow: 0 3px 14px rgba(0,0,0,.6); }
-  .line b { color: var(--coral); }
-  .l1 { top: 52%; animation: a1 9s infinite; } .l2 { top: 20%; animation: a2 9s infinite; } .l3 { top: 62%; animation: a3 9s infinite; }
-  @keyframes a1 { 0% { opacity: 0; transform: translateY(24px); } 6%, 28% { opacity: 1; transform: none; } 34%, 100% { opacity: 0; filter: blur(6px); } }
-  @keyframes a2 { 0%, 33% { opacity: 0; transform: scale(.7); } 40%, 61% { opacity: 1; transform: none; } 67%, 100% { opacity: 0; transform: translateX(-40px); } }
-  @keyframes a3 { 0%, 66% { opacity: 0; filter: blur(10px); } 73%, 94% { opacity: 1; filter: none; } 100% { opacity: 0; transform: scale(.85); } }
   .tag { position: absolute; top: 14px; left: 14px; z-index: 2; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 99px; background: rgba(255,255,255,.14); color: #fff; }
 
+  .clip { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #0b0b10; }
+  .tag { z-index: 2; }
+  .demos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .demos figure { margin: 0; text-align: center; }
+  .phone.sm { width: min(240px, 70%); margin: 0 auto 14px; box-shadow: 0 18px 50px rgba(138,63,252,.18); border-radius: 28px; padding: 8px; }
+  .phone.sm .screen { border-radius: 21px; }
+  figcaption b { display: block; } figcaption span { color: var(--dim); font-size: 14px; }
   section { padding: 56px 0; }
   .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--coral); }
   h2 { font-size: clamp(26px, 3.6vw, 38px); line-height: 1.1; letter-spacing: -.02em; margin: 8px 0 28px; }
@@ -59,10 +59,10 @@
   footer { border-top: 1px solid var(--line); padding: 26px 0 40px; color: var(--dim); font-size: 14px; display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: space-between; }
   footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
   @media (max-width: 820px) {
+    .demos { grid-template-columns: 1fr; }
     .hero, .band { grid-template-columns: 1fr; } .grid { grid-template-columns: 1fr; } .steps { grid-template-columns: 1fr 1fr; }
     nav .links { display: none; } .hero { padding-top: 24px; }
   }
-  @media (prefers-reduced-motion: reduce) { .line { animation: none; opacity: 1; position: static; padding: 6px 16px; } .screen { display: flex; flex-direction: column; justify-content: center; } }
 </style>
 </head>
 <body>
@@ -82,15 +82,19 @@
       </div>
       <p class="small">Corre en tu propia computadora. Tus videos no se suben a ningún servidor nuestro: solo a TikTok o a Drive, y solo cuando tú lo pides.</p>
     </div>
-    <div class="phone" aria-hidden="true">
-      <div class="screen">
-        <span class="tag">ES · EN</span>
-        <div class="line l1">Todo cambia cuando <b>suena</b></div>
-        <div class="line l2">cada palabra <b>cae</b> en su beat</div>
-        <div class="line l3">y tu <b>reel</b> queda listo</div>
-      </div>
-    </div>
+    <div class="phone"><div class="screen"><span class="tag">ES · EN</span>
+      <video class="clip" src="media/c.mp4" poster="media/c.jpg" muted loop playsinline preload="metadata" autoplay width="360" height="640"></video></div></div>
   </header>
+
+  <section id="ejemplos">
+    <div class="eyebrow">Ejemplos reales</div>
+    <h2>Hechos con la fábrica, sin tocar un editor.</h2>
+    <div class="demos">
+      <figure><div class="phone sm"><div class="screen"><video class="clip" data-src="media/a.mp4" poster="media/a.jpg" muted loop playsinline preload="none" width="360" height="640"></video></div></div><figcaption><b>Palabra clave resaltada</b><span>Inglés arriba, español abajo.</span></figcaption></figure>
+      <figure><div class="phone sm"><div class="screen"><video class="clip" data-src="media/b.mp4" poster="media/b.jpg" muted loop playsinline preload="none" width="360" height="640"></video></div></div><figcaption><b>Cambia de lugar y de estilo</b><span>Según el ritmo de la voz.</span></figcaption></figure>
+      <figure><div class="phone sm"><div class="screen"><video class="clip" data-src="media/c.mp4" poster="media/c.jpg" muted loop playsinline preload="none" width="360" height="640"></video></div></div><figcaption><b>Letra y traducción</b><span>Sincronizadas con cada palabra.</span></figcaption></figure>
+    </div>
+  </section>
 
   <section id="que">
     <div class="eyebrow">Qué hace</div>
@@ -154,5 +158,20 @@
     <span><a href="privacy.html">Privacidad / Privacy</a> · <a href="terms.html">Términos / Terms</a> · <a href="mailto:factoryvideo10@gmail.com">factoryvideo10@gmail.com</a> · <a href="https://github.com/hectorDev2/factory-video">GitHub</a></span>
   </footer>
 </div>
+<script>
+// Los videos pesan poco (≈6 s, sin audio) y solo se descargan al acercarse; fuera de pantalla se pausan.
+(function () {
+  var vs = document.querySelectorAll("video.clip");
+  if (!("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) {
+      var v = e.target;
+      if (e.isIntersecting) { if (v.dataset.src) { v.src = v.dataset.src; v.removeAttribute("data-src"); } var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+      else v.pause();
+    });
+  }, { rootMargin: "200px" });
+  vs.forEach(function (v) { io.observe(v); });
+})();
+</script>
 </body>
 </html>

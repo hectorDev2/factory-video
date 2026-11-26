@@ -324,14 +324,15 @@ function runCodex(prompt, cwd, update, { model } = {}) {
   });
 }
 
-function runClaude(prompt, cwd, update, { resume, model } = {}) {
+export function runClaude(prompt, cwd, update, { resume, model, tools, effort, timeoutMs, addDirs, env, pctStep, pctCap } = {}) {
   return new Promise((resolve) => {
     const args = ["-p", prompt, "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"];
     if (resume) args.push("--resume", resume);
     if (model) args.push("--model", model);
-    args.push("--effort", "medium");
-    args.push("--allowedTools", ...CLAUDE_TOOLS);
-    const child = spawn("claude", args, { cwd, env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
+    args.push("--effort", effort ?? "medium");
+    if (addDirs?.length) args.push("--add-dir", ...addDirs);
+    args.push("--allowedTools", ...(tools ?? CLAUDE_TOOLS));
+    const child = spawn("claude", args, { cwd, env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1", ...(env ?? {}) } });
     let buf = "", result = null, turns = 0, stderr = "", session = resume ?? null, lastText = "";
     const activity = [];
     const push = (line) => { activity.push(line); if (activity.length > 12) activity.shift(); update({ activity: [...activity] }); };
@@ -348,13 +349,13 @@ function runClaude(prompt, cwd, update, { resume, model } = {}) {
             if (c.type === "tool_use") push(describeTool(c));
             if (c.type === "text" && c.text.trim()) { lastText = c.text.trim(); push("💬 " + lastText.split("\n")[0].slice(0, 140)); }
           }
-          update({ pct: Math.min(78, 10 + turns * 1.2) });
+          update({ pct: Math.min(pctCap ?? 78, 10 + turns * (pctStep ?? 1.2)) });
         }
         if (ev.type === "result") result = ev;
       }
     });
     child.stderr.on("data", (d) => (stderr += d));
-    const timer = setTimeout(() => { child.kill(); push("⏱ Se agotó el tiempo (30 min)"); }, CLAUDE_TIMEOUT_MS);
+    const timer = setTimeout(() => { child.kill(); push(`⏱ Se agotó el tiempo (${Math.round((timeoutMs ?? CLAUDE_TIMEOUT_MS) / 60000)} min)`); }, timeoutMs ?? CLAUDE_TIMEOUT_MS);
     child.on("error", (e) => resolve({ ok: false, error: e.code === "ENOENT" ? "no encuentro el CLI `claude`" : e.message }));
     child.on("close", (code) => {
       clearTimeout(timer);
@@ -690,10 +691,13 @@ if (process.argv[1] && import.meta.url === new URL(`file://${path.resolve(proces
   }
   Object.assign(state, { status: "trabajando", pid: process.pid, startedAt: Date.now() }); flush();
   try {
-    const job = state.kind === "rerender" ? rerender : state.kind === "lyrics" ? (a) => import("./lyrics.mjs").then((m) => m.makeLyrics({ ...a, deps: { HF, PLATFORMS, run } })) : generate;
+    const job = state.kind === "film" ? (a) => import("./film.mjs").then((m) => m.makeFilm({ ...a, deps: { runClaude } })) : state.kind === "rerender" ? rerender : state.kind === "lyrics" ? (a) => import("./lyrics.mjs").then((m) => m.makeLyrics({ ...a, deps: { HF, PLATFORMS, run } })) : generate;
     const { output, project } = await job({ root, req: state.req, update });
     Object.assign(state, { status: "listo", outputs: [path.relative(path.join(root, "output"), output)], project: path.relative(root, project), finishedAt: Date.now() });
-    if (state.kind === "lyrics") {
+    if (state.kind === "film") {
+      const r = state.req;
+      fs.writeFileSync(output.replace(/\.mp4$/, ".json"), JSON.stringify({ client: r.client, name: r.name, kind: "pelicula", style: r.style, styleName: r.styleName, language: r.language, model: r.model, project: path.relative(root, project), createdAt: Date.now() }, null, 1));
+    } else if (state.kind === "lyrics") {
       const r = state.req;
       fs.writeFileSync(output.replace(/\.mp4$/, ".json"), JSON.stringify({ client: r.client, name: r.name, format: r.format, kind: "letra", track: { title: r.title ?? r.name }, duration: r.duration, project: path.relative(root, project), createdAt: Date.now() }, null, 1));
     } else if (state.kind !== "rerender") {

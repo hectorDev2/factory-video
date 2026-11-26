@@ -26,6 +26,8 @@ export const PROVIDERS = {
     login: "Instala Codex y ejecuta `codex login` una vez." },
   gemini: { label: "Gemini", bin: "gemini", short: "Gemini CLI", models: [["", "El predeterminado de Gemini"]],
     login: "Ejecuta `gemini` una vez para iniciar sesión con Google, o pega una clave de API de aistudio.google.com/apikey." },
+  junie: { label: "Junie", bin: "junie", short: "Junie CLI (JetBrains)", models: [["", "El predeterminado de Junie"]],
+    login: "Ejecuta `junie` una vez e inicia sesión con tu cuenta de JetBrains (o `junie --auth` con un token de junie.jetbrains.com/cli, sin pegarlo en el chat)." },
 };
 const DEFAULT_SPEC = "claude:sonnet";
 
@@ -68,8 +70,9 @@ export function aiStatus() {
       ready = installed && hasKey; // la sesión de Google solo se sabe probando
       if (installed && !hasKey) note = "Sin clave: usa la sesión de Google de `gemini` si la tienes. Si falla: " + p.login;
     }
+    if (id === "junie") { ready = installed && !!(cfg.junieKey || process.env.JUNIE_API_KEY); if (installed && !ready) note = "Falta la clave: pégala abajo (viene de junie.jetbrains.com/cli)."; }
     if (!installed) note = `No está instalado (\`${p.bin}\`).`;
-    return { id, label: p.label, short: p.short, installed, ready, note, models: p.models.map(([value, label]) => ({ value: `${id}:${value}`, label: `${p.label} · ${label}` })), keySet: id === "gemini" ? !!cfg.geminiKey : undefined };
+    return { id, label: p.label, short: p.short, installed, ready, note, models: p.models.map(([value, label]) => ({ value: `${id}:${value}`, label: `${p.label} · ${label}` })), keySet: id === "gemini" ? !!cfg.geminiKey : id === "junie" ? !!cfg.junieKey : undefined };
   });
   return { providers: rows, text: cfg.text || DEFAULT_SPEC, options: rows.filter((r) => r.installed).flatMap((r) => r.models) };
 }
@@ -215,7 +218,30 @@ async function viaGemini(prompt, schema, model) {
   return { data, cost: null };
 }
 
-const RUN = { claude: viaClaude, codex: viaCodex, gemini: viaGemini };
+// Junie CLI (JetBrains): modo sin interfaz, sin herramientas y con pocos pasos; solo contesta.
+async function viaJunie(prompt, schema, model) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-junie-"));
+  try {
+    const full = `${prompt}\n\nResponde SOLO con un objeto JSON válido que cumpla este esquema JSON, sin texto antes ni después y sin bloque de código:\n${JSON.stringify(schema)}`;
+    const args = ["--task", full, "--project", dir, "--output-format", "json", "--skip-update-check", "--max-steps", "4", "--allowed-tools", "", ...(model ? ["--model", model] : [])];
+    const key = loadConfig().junieKey;
+    const { code, out, err } = await exec("junie", args, { cwd: dir, timeout: 300000, env: key ? { JUNIE_API_KEY: key } : {} });
+    const noLogin = () => new Error(`Junie no tiene sesión. ${PROVIDERS.junie.login}`);
+    let ev = null; try { ev = JSON.parse(out); } catch {}
+    // el texto de la respuesta puede venir en distintos campos según la versión
+    if (ev?.errors?.length) { const m = ev.errors.join(" "); throw /authori[sz]|authenticat|token/i.test(m) ? noLogin() : new Error(`Junie falló: ${m.slice(0, 200)}`); }
+    const pick = (o) => (typeof o === "string" ? o : o && typeof o === "object" ? ["result", "response", "output", "message", "text", "answer"].map((k) => pick(o[k])).find(Boolean) : "");
+    const text = pick(ev) || out;
+    const data = extractJson(text);
+    if (!data) {
+      const tail = (err + out).trim().split("\n").filter((l) => l.trim() && !/log file:/i.test(l)).slice(-3).join(" ");
+      throw /log ?in|auth|token|401|unauthori[sz]ed|credit|balance/i.test(tail) ? new Error(/credit|balance/i.test(tail) ? "Junie: tu cuenta no tiene créditos de CLI (revisa junie.jetbrains.com/cli)" : noLogin().message) : new Error(`Junie no devolvió una respuesta${code ? ` (código ${code})` : ""}: ${tail.slice(0, 200)}`);
+    }
+    return { data: dropNulls(data), cost: null };
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+const RUN = { claude: viaClaude, codex: viaCodex, gemini: viaGemini, junie: viaJunie };
 
 // Pregunta con respuesta JSON validada. spec: «claude:sonnet», «codex:», «gemini:», «sonnet» o vacío (la configurada).
 export async function askJsonFull(prompt, schema, spec) {

@@ -13,3 +13,8 @@ runs/
 ai-config.json
 drive-sent.json
 social/
+motion/
+vendor/
+films/
+!docs/media/
+motion-graphics-viegas/
