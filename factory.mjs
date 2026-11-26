@@ -17,6 +17,7 @@ import http from "node:http";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { FORMAT_IDS, PLATFORMS, readCopy, writeCopy, previewPlan } from "./generate.mjs";
 import { LYRIC_STYLES, LYRIC_FONTS, LYRIC_POSITIONS } from "./lyrics.mjs";
@@ -478,6 +479,14 @@ function ui() {
       const file = path.join(MEDIA, safeName(q.get("client")), "site.json");
       json(res, { site: fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null });
     },
+    // Crear un cliente: su carpeta existe desde el primer momento (antes solo existía al subir un archivo).
+    "POST /api/clients": async (req, res) => {
+      const { name } = await body(req);
+      const client = slug(String(name ?? ""));
+      if (!client || client.startsWith(".")) return json(res, { error: "escribe un nombre para el cliente" }, 400);
+      fs.mkdirSync(path.join(MEDIA, safeName(client)), { recursive: true });
+      json(res, { ok: true, name: client, clients: mediaProjects() });
+    },
     "POST /api/media/folder": async (req, res) => {
       const { project, folder } = await body(req);
       fs.mkdirSync(path.join(MEDIA, safeName(project), safeName(slug(folder ?? ""))), { recursive: true });
@@ -521,6 +530,35 @@ function ui() {
       fs.createReadStream(jpg).pipe(res);
     },
     // Abre el proyecto del video en el Studio de HyperFrames (editor visual con línea de tiempo).
+    // Quitar videos que no sirven: se mueven a la papelera de macOS (se pueden recuperar), no se borran para siempre.
+    "POST /api/videos/delete": async (req, res) => {
+      const { paths, project } = await body(req);
+      if (!Array.isArray(paths) || !paths.length) return json(res, { error: "elige al menos un video" }, 400);
+      const home = path.join(os.homedir(), ".Trash");
+      const trash = fs.existsSync(home) ? home : path.join(OUTPUT, ".papelera");
+      fs.mkdirSync(trash, { recursive: true });
+      const toTrash = (file) => {
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        let dest = path.join(trash, path.basename(file));
+        if (fs.existsSync(dest)) dest = path.join(trash, `${stamp} ${path.basename(file)}`);
+        try { fs.renameSync(file, dest); } catch { fs.cpSync(file, dest, { recursive: true }); fs.rmSync(file, { recursive: true, force: true }); }
+      };
+      let videos = 0, projects = 0;
+      for (const rel of paths.slice(0, 300)) {
+        const file = path.resolve(OUTPUT, String(rel));
+        if (!file.startsWith(OUTPUT + path.sep) || !file.endsWith(".mp4") || !fs.existsSync(file)) continue;
+        const side = file.replace(/\.mp4$/, ".json");
+        let meta = {}; try { meta = JSON.parse(fs.readFileSync(side, "utf8")); } catch {}
+        toTrash(file); videos++;
+        if (fs.existsSync(side)) toTrash(side);
+        // el proyecto editable solo si se pide y está dentro de projects/
+        if (project && meta.project) {
+          const dir = path.resolve(ROOT, meta.project);
+          if (dir.startsWith(path.join(ROOT, "projects") + path.sep) && fs.existsSync(dir)) { toTrash(dir); projects++; }
+        }
+      }
+      json(res, { ok: true, videos, projects, trash: trash.startsWith(os.homedir()) ? "la papelera de macOS" : "output/.papelera" });
+    },
     "POST /api/studio": async (req, res) => {
       const project = projectPath((await body(req)).project);
       const r = await run("npx", ["--yes", `hyperframes@${HF_VERSION}`, "preview", "--background", "--json", "--no-open"], 90000, project);

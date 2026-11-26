@@ -623,6 +623,34 @@ dialog.lyr-dlg .ly-left { max-height: none; height: 100%; overflow-y: auto; }
 dialog.lyr-dlg .ly-right { overflow-y: auto; }
 dialog.lyr-dlg .ly-foot { flex: none; border-top: 1px solid var(--line); border-bottom: 0; justify-content: flex-end; background: rgba(21, 24, 30, .98); }
 @media (max-height: 760px) { .live { max-height: 300px; } .fx .fp { height: 48px; } }
+
+.mk .modes2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+.mk .mode { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px; cursor: pointer; color: var(--ink); }
+.mk .mode b { display: block; font-family: var(--font-head); font-size: 15px; }
+.mk .mode small { display: block; margin-top: 4px; color: var(--dim); font-size: 12px; line-height: 1.35; }
+.mk .mode.on { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 94, 98, .12); }
+.ideas { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 14px; }
+.btn.big { padding: 12px 18px; font-size: 14px; }
+.style-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+.stile { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; cursor: pointer; color: var(--ink); }
+.stile i { font-style: normal; font-size: 20px; display: block; }
+.stile b { display: block; font-family: var(--font-head); font-size: 13px; margin-top: 2px; }
+.stile small { color: var(--dim); font-size: 11px; }
+.stile.on { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 94, 98, .12); }
+#gsBpm { width: 100%; }
+.range-ends { display: flex; justify-content: space-between; color: var(--faint); font-size: 11px; margin-top: 2px; }
+@media (max-width: 900px) { .mk .modes2 { grid-template-columns: 1fr; } .style-tiles { grid-template-columns: repeat(2, 1fr); } }
+
+.btn.danger { background: rgba(255, 94, 98, .14); border-color: rgba(255, 94, 98, .5); color: #ffb3b0; }
+.btn.danger:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+.selbar { position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 12px 16px; background: rgba(21, 24, 30, .96); backdrop-filter: blur(14px); border: 1px solid #3e4656; border-radius: var(--r-lg); box-shadow: 0 -10px 30px rgba(0,0,0,.4); }
+.selbar .grow { flex: 1; }
+.grid.selmode .vcard { position: relative; cursor: pointer; }
+.vcard .chk { position: absolute; z-index: 5; top: 10px; left: 10px; width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; background: rgba(13, 15, 18, .55); }
+.vcard.sel { outline: 3px solid var(--accent); outline-offset: -3px; border-radius: var(--r-lg); }
+.vcard.sel .chk { background: var(--accent); border-color: var(--accent); }
+.vcard.sel .chk::after { content: "✓"; color: #fff; display: grid; place-items: center; height: 100%; font-size: 14px; font-weight: 700; }
+.delist { margin: 0 0 12px; padding-left: 18px; color: var(--ink); font-size: 13px; line-height: 1.7; }
 </style>
 </head>
 <body>
@@ -839,7 +867,7 @@ dialog.lyr-dlg .ly-foot { flex: none; border-top: 1px solid var(--line); border-
 <script>
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const state = { tracks: [], templates: [], jobs: [], track: null, peaks: null, start: 0, dur: 6, template: null, playing: false, tab: "inicio", videos: [], runs: [], vClient: null, vNet: "" };
+const state = { tracks: [], templates: [], jobs: [], track: null, peaks: null, start: 0, dur: 6, template: null, playing: false, tab: "inicio", videos: [], runs: [], vClient: null, vNet: "", vSel: new Set(), vSelMode: false };
 const audio = new Audio();
 audio.preload = "auto";
 
@@ -861,34 +889,29 @@ async function api(url, data) {
 // ----- canciones generadas con código -----
 function initSongGen() {
   const st = state.songStyles ?? [];
-  $("#gsStyle").innerHTML = st.map((x) => `<option value="${x.id}">${x.label}</option>`).join("");
   $("#gsKey").innerHTML = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"].map((k) => `<option${k === "A" ? " selected" : ""}>${k}</option>`).join("");
-  const sync = () => { const x = st.find((y) => y.id === $("#gsStyle").value); if (x) $("#gsBpm").value = x.bpm; };
-  $("#gsStyle").onchange = sync; sync();
-  const fillClients = () => { const c = $("#gaClient"), prev = c.value || localGet("factory.client"); c.innerHTML = `<option value="">— elige un cliente —</option>`; for (const n of state.clients) c.add(new Option(n, n)); if (state.clients.includes(prev)) c.value = prev; };
+  const fillClients = () => { const c = $("#gaClient"); if (!c) return; const prev = c.value || localGet("factory.client"); c.innerHTML = `<option value="">— elige un cliente —</option>`; for (const n of state.clients) c.add(new Option(n, n)); if (state.clients.includes(prev)) c.value = prev; };
   fillClients(); state.refillGen = fillClients;
   $("#gaGo").onclick = async () => {
-    const client = $("#gaClient").value; if (!client) return toast("Elige un cliente: Claude necesita ver su web y su contenido.", true);
-    const btn = $("#gaGo"), out = $("#gaOut"); btn.disabled = true; btn.textContent = "Claude está componiendo…"; out.textContent = "Leyendo la web y el contenido del cliente…";
+    const client = $("#gaClient").value; if (!client) return toast("Elige para qué cliente es la música: Claude necesita ver su web y su contenido.", true);
+    const btn = $("#gaGo"); btn.disabled = true; btn.textContent = "Claude está componiendo… (≈15 s)";
     try {
       const r = await api("/api/music/compose", { client, hint: $("#gaHint").value, songSeconds: $("#gaDur").value, videoSeconds: $("#duration")?.value ? parseInt($("#duration").value) : 20, format: $("#format")?.value, model: $("#gaModel").value, notes: $("#notes")?.value ?? "", brand: $("#brand")?.value ?? "" });
-      out.textContent = `${r.title} · ${r.style} · ${r.bpm} BPM · ${r.key} ${r.scale === "major" ? "mayor" : "menor"}\n${r.why}`;
-      toast(`Canción lista: ${r.title}`);
       await load(r.id);
-    } catch (e) { out.textContent = ""; toast(e.message, true); }
-    btn.disabled = false; btn.textContent = "✨ Componer con Claude";
+      showNewSong(r.id, r.why);
+    } catch (e) { toast(e.message, true); }
+    btn.disabled = false; btn.textContent = "✨ Crear música con Claude";
   };
-
   $("#gsDice").onclick = () => { $("#gsSeed").value = 1 + Math.floor(Math.random() * 9999); };
   $("#gsGo").onclick = async () => {
-    const btn = $("#gsGo"); btn.disabled = true; btn.textContent = "Componiendo…";
+    const btn = $("#gsGo"); btn.disabled = true; btn.textContent = "Creando…";
     try {
       const r = await api("/api/music/generate", { style: $("#gsStyle").value, bpm: $("#gsBpm").value, key: $("#gsKey").value, scale: $("#gsScale").value, dur: $("#gsDur").value, seed: $("#gsSeed").value, name: $("#gsName").value });
-      toast(`Canción lista: ${r.title} · ${r.bpm} BPM · ${r.key} ${r.scale === "major" ? "mayor" : "menor"}`);
       $("#gsName").value = "";
       await load(r.id);
+      showNewSong(r.id);
     } catch (e) { toast(e.message, true); }
-    btn.disabled = false; btn.textContent = "Generar canción";
+    btn.disabled = false; btn.textContent = "Crear canción";
   };
 }
 
@@ -1310,7 +1333,14 @@ function drawGrid() {
     grid.innerHTML = '<div class="vempty"><b>Aún no hay videos aquí</b>Crea el primero desde «Crear»: elige una canción, el fragmento y genera.</div>';
     return;
   }
-  list.forEach((v, i) => grid.append(videoCard(v, () => openModal(list, i))));
+  grid.classList.toggle("selmode", state.vSelMode);
+  list.forEach((v, i) => {
+    const toggle = () => { state.vSel.has(v.path) ? state.vSel.delete(v.path) : state.vSel.add(v.path); card.classList.toggle("sel", state.vSel.has(v.path)); updateSelBar(); };
+    const card = videoCard(v, () => (state.vSelMode ? toggle() : openModal(list, i)));
+    if (state.vSelMode) { card.insertAdjacentHTML("afterbegin", '<span class="chk"></span>'); card.classList.toggle("sel", state.vSel.has(v.path)); }
+    grid.append(card);
+  });
+  updateSelBar();
 }
 
 function videoCard(v, onOpen) {
@@ -1391,6 +1421,7 @@ function renderVideoDetail(box, v, opts = {}) {
   const a = document.createElement("a"); a.className = "btn primary"; a.href = videoUrl(v); a.download = `${v.name}.mp4`; a.textContent = "Descargar MP4"; acts.append(a);
   const mk = (label, fn) => { const b = document.createElement("button"); b.className = "btn"; b.textContent = label; b.onclick = fn; acts.append(b); return b; };
   if (v.client) mk("♪ Subtitular", () => lyricsDialog(v.client, v.path, { fromOutput: true, url: videoUrl(v), label: v.name }));
+  mk("🗑 Eliminar", () => confirmDelete([v], afterDelete)).classList.add("danger");
   mk("Mostrar en Finder", () => api("/api/reveal", { path: v.path }).catch((e) => toast(e.message, true)));
   if (v.project) {
     const sb = mk("Abrir en HyperFrames Studio", async () => {
@@ -1716,6 +1747,7 @@ function bindDownload(name, opts = {}) {
   const start = async (url, range) => {
     busy(true, "Empezando…");
     try {
+      await api("/api/clients", { name }); // por si el cliente solo existía en esta página
       const { id } = await api("/api/media/ingest", { client: name, url, folder: "clips", ...(range ?? {}) });
       const r = await progress(id);
       toast(`Descargado: ${r.title || r.file}${range ? ` (${Math.round(range.end - range.start)} s)` : ""}`);
@@ -2004,11 +2036,12 @@ async function renderClientsList() {
   v.innerHTML = `<div class="page-h"><div><span class="eyebrow">Tu cartera</span><h1>Clientes</h1></div><span class="grow"></span>
     <form class="row" id="clientForm" style="margin:0"><input id="clientName" placeholder="Nombre del cliente, p. ej. corrales" style="min-width:260px" /><button class="btn primary">＋ Nuevo cliente</button></form></div>
     <div class="grid-cards" id="clGrid"></div>`;
-  $("#clientForm").onsubmit = (e) => {
+  $("#clientForm").onsubmit = async (e) => {
     e.preventDefault();
     const name = slug($("#clientName").value); if (!name) return;
+    try { await api("/api/clients", { name }); } catch (err) { return toast(err.message, true); }
     if (!state.clients.includes(name)) { state.clients.push(name); state.clients.sort(); }
-    $("#clientName").value = ""; openClient(name);
+    $("#clientName").value = ""; toast(`Cliente «${name}» creado`); openClient(name);
   };
   if (!state.videos.length) await loadVideos().catch(() => {});
   const g = $("#clGrid");
@@ -2423,8 +2456,13 @@ function renderReview() {
 // ===================== Videos =====================
 async function renderVideos() {
   const v = $("#v-videos");
-  v.innerHTML = `<div class="page-h"><div><span class="eyebrow">Galería</span><h1>Videos</h1></div><span class="hint" id="vCount"></span><span class="grow"></span><select id="vNet" aria-label="Filtrar por red social"></select></div>
-    <div class="filters" id="vFilters"></div><div class="runs runs-box"></div><div id="vGrid" class="grid"></div>`;
+  v.innerHTML = `<div class="page-h"><div><span class="eyebrow">Galería</span><h1>Videos</h1></div><span class="hint" id="vCount"></span><span class="grow"></span><button class="btn" id="vSelBtn" type="button">☑ Seleccionar</button><select id="vNet" aria-label="Filtrar por red social"></select></div>
+    <div class="filters" id="vFilters"></div><div class="runs runs-box"></div><div id="vGrid" class="grid"></div>
+    <div class="selbar" id="selBar" hidden><b id="selN"></b><span class="grow"></span><button class="btn" id="selAll" type="button">Seleccionar todos</button><button class="btn danger" id="selDel" type="button">🗑 Eliminar</button></div>`;
+  state.vSelMode = false; state.vSel.clear();
+  $("#vSelBtn").onclick = () => { state.vSelMode = !state.vSelMode; if (!state.vSelMode) state.vSel.clear(); drawGrid(); updateSelBar(); };
+  $("#selAll").onclick = () => { const l = filteredVideos(); const all = l.every((v) => state.vSel.has(v.path)); l.forEach((v) => (all ? state.vSel.delete(v.path) : state.vSel.add(v.path))); drawGrid(); updateSelBar(); };
+  $("#selDel").onclick = () => { const vs = state.videos.filter((v) => state.vSel.has(v.path)); if (vs.length) confirmDelete(vs, afterDelete); };
   $("#vGrid").innerHTML = '<div class="vempty">Cargando…</div>';
   await loadVideos();
   renderVideosSide(); drawGrid(); drawRuns();
@@ -2443,38 +2481,90 @@ function renderVideosSide() {
 }
 
 // ===================== Música (biblioteca, generador y procesos) =====================
+const STYLE_INFO = {
+  reggaeton: ["💃", "Reggaetón", "baile latino"], house: ["🎧", "House", "club y fiesta"], trap: ["🔥", "Trap", "urbano y fuerte"],
+  lofi: ["☕", "Lo-fi", "suave y relajado"], chiptune: ["🎮", "Chiptune", "estilo videojuego"], pop: ["☀️", "Pop", "alegre y comercial"],
+};
+const speedWord = (bpm) => (bpm < 85 ? "lento" : bpm < 115 ? "moderado" : bpm < 145 ? "rápido" : "muy rápido");
 async function renderMusica() {
   const v = $("#v-musica");
   const styles = (state.songStyles ?? []).map((x) => `<option value="${x.id}">${esc(x.label)}</option>`).join("");
-  const keys = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"].map((k) => `<option${k === "A" ? " selected" : ""}>${k}</option>`).join("");
   v.innerHTML = `
-    <div class="page-h"><div><span class="eyebrow">Audio engine · beats exactos</span><h1>Biblioteca y diseño acústico</h1><p class="hint" style="margin:6px 0 0;max-width:620px">Canciones con los beats conocidos, para que cortes y transiciones caigan en el golpe. Compón música a medida del cliente o genérala por parámetros: no lleva derechos de terceros.</p></div></div>
+    <div class="page-h"><div><span class="eyebrow">Biblioteca</span><h1>Música</h1><p class="hint" style="margin:6px 0 0;max-width:620px">Busca una canción que ya tengas, descarga una nueva o crea una tuya. Las que creas aquí no llevan derechos de terceros.</p></div></div>
     <form class="row" id="fetchForm" style="margin:0 0 6px"><input id="fetchQuery" placeholder="Busca en tu biblioteca o descarga una nueva (título, artista o enlace de Spotify)" style="flex:1;min-width:260px" autocomplete="off" /><button class="btn" id="fetchBtn">Buscar en internet</button></form>
     <div class="results local" id="localRes" hidden></div>
     <div class="results" id="results" hidden></div>
     <div class="mus-grid"><div>
-      <div class="gen2">
-        <section class="card2"><h4>Generación de marca · Claude</h4><h3 style="margin-bottom:8px">Música a medida del cliente</h3>
-          <p class="hint" style="margin:0 0 10px">Claude lee la web, el contenido y la red social del cliente y decide estilo, tempo, tonalidad, ritmo e instrumentos.</p>
-          <div class="row" style="margin:0 0 8px"><label class="field grow">Cliente<select id="gaClient"></select></label><label class="field">Duración (s)<input id="gaDur" type="number" min="20" max="150" value="45" style="width:90px" /></label><label class="field">Modelo<select id="gaModel"><option value="sonnet">Sonnet</option><option value="opus">Opus</option></select></label></div>
-          <label class="field">¿Qué debe transmitir? (opcional)<input id="gaHint" placeholder="Ej.: antojo y fiesta, algo bailable" /></label>
-          <div class="crit" id="gaOut">El «porqué» de la decisión aparece aquí.</div>
-          <button class="btn primary wide" id="gaGo" type="button">✨ Componer con Claude</button></section>
-        <section class="card2"><h4>Generador paramétrico</h4><h3 style="margin-bottom:8px">Tú decides los parámetros</h3>
-          <div class="row" style="margin:0 0 8px"><label class="field grow">Estilo<select id="gsStyle">${styles}</select></label><label class="field">Tonalidad<select id="gsKey">${keys}</select></label><label class="field">Escala<select id="gsScale"><option value="">del estilo</option><option value="minor">Menor</option><option value="major">Mayor</option></select></label></div>
-          <div class="row" style="margin:0 0 8px"><label class="field grow">Tempo <b id="gsBpmV"></b> BPM<input id="gsBpm" type="range" min="60" max="190" value="100" /></label><label class="field">Duración (s)<input id="gsDur" type="number" min="8" max="150" value="45" style="width:90px" /></label></div>
-          <div class="row" style="margin:0 0 8px"><label class="field grow">Nombre (opcional)<input id="gsName" placeholder="Promo verano" /></label><label class="field">Semilla<span class="gs-seed"><input id="gsSeed" type="number" min="1" value="1" style="width:84px" /><button type="button" class="btn" id="gsDice" title="Otra variación">🎲</button></span></label></div>
-          <p class="hint" id="gsHint" style="margin:0 0 10px">La misma semilla da siempre la misma canción.</p>
-          <button class="btn primary wide" id="gsGo" type="button">Sintetizar canción</button></section>
-      </div>
+      <section class="card2 mk" style="margin-top:16px">
+        <div class="wz-card-h"><h3>Crear una canción nueva</h3><span class="hint">¿Cómo quieres crearla?</span></div>
+        <div class="modes2" id="mkModes">
+          <button type="button" class="mode on" data-m="ai"><b>✨ A medida de un cliente</b><small>Claude lee su web y su contenido y decide cómo debe sonar</small></button>
+          <button type="button" class="mode" data-m="man"><b>🎛️ La armo yo</b><small>Eliges el estilo, la velocidad y el ánimo</small></button>
+        </div>
+
+        <div id="mkAi">
+          <label class="field">¿Para qué cliente?<select id="gaClient"></select></label>
+          <label class="field" style="margin-top:12px">¿Qué sensación debe transmitir? <span class="hint">(opcional)</span><input id="gaHint" placeholder="Ej.: antojo y fiesta, algo bailable" /></label>
+          <div class="ideas" id="gaIdeas"></div>
+          <button class="btn primary wide big" id="gaGo" type="button">✨ Crear música con Claude</button>
+          <p class="hint center" style="margin:8px 0 0">Tarda unos 15 s y usa una llamada corta de tu plan de Claude.</p>
+          <details class="more"><summary>Más opciones</summary>
+            <div class="row" style="margin:10px 0 0"><label class="field">Duración (segundos)<input id="gaDur" type="number" min="20" max="150" value="45" style="width:110px" /></label>
+              <label class="field">Modelo de Claude<select id="gaModel"><option value="sonnet">Sonnet · gasta menos</option><option value="opus">Opus · más cuidado</option></select></label></div>
+          </details>
+        </div>
+
+        <div id="mkMan" hidden>
+          <label class="field">1 · Estilo</label>
+          <div class="style-tiles" id="gsTiles"></div>
+          <select id="gsStyle" hidden>${styles}</select>
+          <label class="field" style="margin-top:16px">2 · Velocidad: <b id="gsBpmV"></b></label>
+          <input id="gsBpm" type="range" min="60" max="190" value="100" />
+          <div class="range-ends"><span>Lento</span><span>Rápido</span></div>
+          <label class="field" style="margin-top:12px">3 · Ánimo</label>
+          <div class="seg2" id="gsMood"><button type="button" data-v="" class="on">Según el estilo</button><button type="button" data-v="major">😊 Alegre</button><button type="button" data-v="minor">🌙 Oscuro</button></div>
+          <select id="gsScale" hidden><option value="">del estilo</option><option value="minor">Menor</option><option value="major">Mayor</option></select>
+          <div class="row" style="margin:16px 0 0"><label class="field">Duración (segundos)<input id="gsDur" type="number" min="8" max="150" value="45" style="width:110px" /></label>
+            <label class="field grow">Nombre <span class="hint">(opcional)</span><input id="gsName" placeholder="Promo verano" /></label></div>
+          <details class="more"><summary>Ajustes técnicos</summary>
+            <div class="row" style="margin:10px 0 0"><label class="field">Tonalidad<select id="gsKey"></select></label>
+              <label class="field">Variación<span class="gs-seed"><input id="gsSeed" type="number" min="1" value="1" style="width:90px" /><button type="button" class="btn" id="gsDice" title="Otra variación">🎲</button></span></label></div>
+            <p class="hint" id="gsHint" style="margin:8px 0 0">La misma variación da siempre la misma canción; cambia el número para otra melodía.</p>
+          </details>
+          <div class="row" style="margin:16px 0 0"><button class="btn primary big grow" id="gsGo" type="button">Crear canción</button><button class="btn" id="gsAgain" type="button" title="Crea otra con una variación distinta">🎲 Otra variación</button></div>
+        </div>
+      </section>
+
+      <section class="card2" id="newSong" hidden style="margin-top:16px"></section>
     </div>
-    <aside><section class="card2" style="margin:0"><div class="wz-card-h"><h3>Centro de render y procesos</h3></div><div class="runs runs-box"></div><div class="tool-cards"></div></section></aside></div>`;
+    <aside><section class="card2" style="margin:16px 0 0"><div class="wz-card-h"><h3>Procesos</h3></div><div class="runs runs-box"></div><div class="tool-cards"></div></section></aside></div>`;
   initSongGen(); bindFetch();
-  $("#gsBpm").oninput = () => ($("#gsBpmV").textContent = $("#gsBpm").value);
-  $("#gsStyle").onchange = () => { const x = (state.songStyles ?? []).find((y) => y.id === $("#gsStyle").value); if (x) { $("#gsBpm").value = x.bpm; $("#gsBpmV").textContent = x.bpm; } };
-  $("#gsStyle").onchange(); if (state.client && state.clients.includes(state.client)) $("#gaClient").value = state.client;
+  // dos caminos
+  $$("#mkModes .mode").forEach((b) => (b.onclick = () => { $$("#mkModes .mode").forEach((x) => x.classList.toggle("on", x === b)); $("#mkAi").hidden = b.dataset.m !== "ai"; $("#mkMan").hidden = b.dataset.m !== "man"; }));
+  // ideas rápidas
+  for (const t of ["Antojo y fiesta", "Calma y lujo", "Energía y confianza", "Diversión juvenil", "Cálido y familiar"]) { const b = document.createElement("button"); b.type = "button"; b.className = "pillbtn"; b.textContent = t; b.onclick = () => { $("#gaHint").value = t; $("#gaHint").focus(); }; $("#gaIdeas").append(b); }
+  // estilos como tarjetas
+  const sel = $("#gsStyle");
+  for (const x of state.songStyles ?? []) { const [emo, name, d] = STYLE_INFO[x.id] ?? ["🎵", x.label, ""]; const b = document.createElement("button"); b.type = "button"; b.className = "stile"; b.dataset.id = x.id; b.innerHTML = `<i>${emo}</i><b>${name}</b><small>${d}</small>`; b.onclick = () => { sel.value = x.id; sel.dispatchEvent(new Event("change")); }; $("#gsTiles").append(b); }
+  const bpmLabel = () => { $("#gsBpmV").textContent = `${$("#gsBpm").value} BPM · ${speedWord(Number($("#gsBpm").value))}`; };
+  $("#gsBpm").oninput = bpmLabel;
+  sel.onchange = () => { const x = (state.songStyles ?? []).find((y) => y.id === sel.value); if (x) { $("#gsBpm").value = x.bpm; } bpmLabel(); $$("#gsTiles .stile").forEach((t) => t.classList.toggle("on", t.dataset.id === sel.value)); };
+  sel.onchange();
+  $$("#gsMood button").forEach((b) => (b.onclick = () => { $("#gsScale").value = b.dataset.v; $$("#gsMood button").forEach((x) => x.classList.toggle("on", x === b)); }));
+  $("#gsAgain").onclick = () => { $("#gsSeed").value = 1 + Math.floor(Math.random() * 9999); $("#gsGo").click(); };
+  if (state.client && state.clients.includes(state.client)) $("#gaClient").value = state.client;
   drawRuns();
 }
+
+// «Tu nueva canción»: se escucha y se usa sin buscarla en ninguna lista.
+function showNewSong(id, why) {
+  const t = state.tracks.find((x) => x.id === id), box = $("#newSong"); if (!t || !box) return;
+  box.hidden = false; box.innerHTML = `<div class="wz-card-h"><h3>🎉 Tu nueva canción</h3></div><div id="nsRow"></div>${why ? '<p class="eyebrow" style="margin:14px 0 4px">¿Por qué esta música?</p><p class="crit" id="nsWhy"></p>' : ""}`;
+  $("#nsRow").append(songRow(t));
+  if (why) $("#nsWhy").textContent = why;
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
 function drawLocalMatches() {
   const box = $("#localRes"), q = ($("#fetchQuery")?.value ?? "").trim().toLowerCase(); if (!box) return;
   box.innerHTML = "";
@@ -2680,6 +2770,45 @@ async function reelFollow(id) {
     if (r.summary) res.insertAdjacentHTML("beforeend", `<p class="summary" style="margin-top:14px">${esc(r.summary)}</p>`);
   } catch (e) { st.textContent = "No se pudo terminar"; res.innerHTML = `<pre class="log"></pre>`; $("pre", res).textContent = e.message; }
   pollRuns();
+}
+
+
+// ===================== Eliminar videos (a la papelera) =====================
+function confirmDelete(videos, onDone) {
+  const dlg = document.createElement("dialog"); dlg.className = "lyr-dlg"; dlg.style.width = "min(520px, 92vw)";
+  const withProject = videos.some((v) => v.project);
+  dlg.innerHTML = `<div class="ly-head"><span class="ic" style="background:rgba(255,94,98,.15)">🗑</span><div><h3>${videos.length === 1 ? "Eliminar este video" : `Eliminar ${videos.length} videos`}</h3><span class="hint">Se mueven a la papelera de macOS: puedes recuperarlos de ahí.</span></div></div>
+    <div style="padding:16px 22px"><ul class="delist"></ul>
+      ${withProject ? '<label class="check"><input type="checkbox" id="delProj" /> También el proyecto editable de cada uno <span class="hint">(si lo quitas, ya no podrás editar sus textos)</span></label>' : ""}</div>
+    <div class="ly-head ly-foot"><button class="btn" id="delNo">Cancelar</button><button class="btn danger" id="delGo">Eliminar ${videos.length === 1 ? "el video" : `los ${videos.length} videos`}</button></div>`;
+  const ul = $(".delist", dlg);
+  for (const v of videos.slice(0, 6)) { const li = document.createElement("li"); li.textContent = `${v.client ?? "plantillas"} · ${v.name}`; ul.append(li); }
+  if (videos.length > 6) { const li = document.createElement("li"); li.className = "hint"; li.textContent = `…y ${videos.length - 6} más`; ul.append(li); }
+  document.body.append(dlg);
+  $("#delNo", dlg).onclick = () => dlg.close();
+  dlg.onclose = () => dlg.remove();
+  $("#delGo", dlg).onclick = async () => {
+    const btn = $("#delGo", dlg); btn.disabled = true; btn.textContent = "Eliminando…";
+    try {
+      const r = await api("/api/videos/delete", { paths: videos.map((v) => v.path), project: !!$("#delProj", dlg)?.checked });
+      dlg.close();
+      toast(`${r.videos} video${r.videos === 1 ? "" : "s"} movido${r.videos === 1 ? "" : "s"} a ${r.trash}${r.projects ? ` (y ${r.projects} proyecto${r.projects === 1 ? "" : "s"})` : ""}`);
+      await onDone?.();
+    } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = "Reintentar"; }
+  };
+  dlg.showModal();
+}
+async function afterDelete() {
+  state.vSel.clear(); closeModal();
+  await loadVideos(); refreshVideosView(); updateSelBar(); drawRuns();
+}
+function updateSelBar() {
+  const bar = $("#selBar"); if (!bar) return;
+  const n = state.vSel.size;
+  bar.hidden = !state.vSelMode;
+  $("#selN").textContent = n ? `${n} seleccionado${n === 1 ? "" : "s"}` : "Toca los videos que quieras quitar";
+  $("#selDel").disabled = !n;
+  $("#vSelBtn").textContent = state.vSelMode ? "✕ Salir de selección" : "☑ Seleccionar";
 }
 
 // Si la interfaz o el servidor cambian, avisa para recargar (evita usar una página vieja sin saberlo).

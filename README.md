@@ -148,6 +148,8 @@ sequenceDiagram
 
 El verso va arriba y su traducción debajo. En 9:16 el texto queda dentro de la zona segura de todas las redes (a 672 px del borde inferior y 200 px de los lados).
 
+Cada línea lleva una **placa oscura del tamaño del texto** (36 %) para que se lea sobre cualquier fondo, también sobre videos claros. Si HyperFrames avisa de un contraste justo, es solo un aviso: no impide generar el reel.
+
 ### Modo dinámico: cómo decide cada frase
 
 ```mermaid
