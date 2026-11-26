@@ -6,6 +6,7 @@
 // poder abrirlo en el Studio y seguir editándolo.
 
 import { spawn, spawnSync } from "node:child_process";
+import { NPX, NPX_ARGS } from "./bin.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -71,7 +72,7 @@ export async function generate({ root, req, update }) {
   step("Preparando el proyecto", 2);
   fs.rmSync(project, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(project), { recursive: true });
-  await run("npx", [...HF, "init", req.name, "--example", "blank", "--resolution", fmt.resolution, "--non-interactive", "--skip-skills", "--skill=hyperframes"], path.dirname(project));
+  await run(NPX, [...NPX_ARGS, ...HF, "init", req.name, "--example", "blank", "--resolution", fmt.resolution, "--non-interactive", "--skip-skills", "--skill=hyperframes"], path.dirname(project));
   if (!fs.existsSync(path.join(project, "index.html"))) throw new Error("hyperframes init no creó el proyecto");
   if (fmt.base === "portrait" && fmt.h !== 1920) {
     // HyperFrames no trae preset 4:5: se parte del vertical y se ajusta el lienzo.
@@ -112,7 +113,7 @@ export async function generate({ root, req, update }) {
     beats = { bpm: full.bpm, beatTimes: full.beatTimes.filter((t) => t >= req.start - 0.01 && t < req.start + req.duration).map((t) => Math.max(0, Math.round((t - req.start) * 1000) / 1000)) };
   }
   if (beats.beatTimes.length < 4) {
-    const beatsRun = spawnSync("npx", [...HF, "beats", music, "--json"], { cwd: project, encoding: "utf8" });
+    const beatsRun = spawnSync(NPX, [...NPX_ARGS, ...HF, "beats", music, "--json"], { cwd: project, encoding: "utf8" });
     try { beats = JSON.parse(beatsRun.stdout.slice(beatsRun.stdout.indexOf("{"))); } catch {}
   }
   const accents = loudMoments(music, req.duration);
@@ -122,7 +123,7 @@ export async function generate({ root, req, update }) {
   step("Instalando transiciones", 9);
   let transitions = [];
   try {
-    const out = await run("npx", [...HF, "add", ...TRANSITIONS, "--no-clipboard", "--json"], project);
+    const out = await run(NPX, [...NPX_ARGS, ...HF, "add", ...TRANSITIONS, "--no-clipboard", "--json"], project);
     transitions = TRANSITIONS.filter((t) => fs.existsSync(path.join(project, "compositions", `${t}.html`)));
     fs.writeFileSync(path.join(project, "transitions.json"), out.slice(out.indexOf("{") >= 0 ? out.indexOf("{") : 0));
   } catch {}
@@ -162,7 +163,7 @@ export async function generate({ root, req, update }) {
   // 6 · Comprobación y render
   async function finish(claude) {
   step("Comprobando la composición", 80);
-  const check = spawnSync("npx", [...HF, "check", "--json"], { cwd: project, encoding: "utf8", maxBuffer: 1 << 26 });
+  const check = spawnSync(NPX, [...NPX_ARGS, ...HF, "check", "--json"], { cwd: project, encoding: "utf8", maxBuffer: 1 << 26 });
   try {
     const report = JSON.parse(check.stdout.slice(check.stdout.indexOf("{")));
     const errors = Object.values(report).flatMap((v) => v?.findings ?? []).filter((f) => f.severity === "error");
@@ -171,7 +172,7 @@ export async function generate({ root, req, update }) {
 
   step("Renderizando", 82);
   fs.mkdirSync(path.dirname(output), { recursive: true });
-  await run("npx", [...HF, "render", "-o", output, "--quality", req.quality ?? "looks"], project, (line) => {
+  await run(NPX, [...NPX_ARGS, ...HF, "render", "-o", output, "--quality", req.quality ?? "looks"], project, (line) => {
     const m = line.match(/^@hf-progress (\{.*\})/);
     if (m) try { update({ pct: 82 + (JSON.parse(m[1]).pct ?? 0) * 0.18 }); } catch {}
   });
@@ -656,7 +657,7 @@ export async function rerender({ root, req, update }) {
   const project = path.join(root, req.project);
   const output = path.join(root, "output", req.output);
   update({ phase: "Renderizando", pct: 5 });
-  await run("npx", [...HF, "render", "-o", output, "--quality", req.quality ?? "looks"], project, (line) => {
+  await run(NPX, [...NPX_ARGS, ...HF, "render", "-o", output, "--quality", req.quality ?? "looks"], project, (line) => {
     const m = line.match(/^@hf-progress (\{.*\})/);
     if (m) try { update({ pct: 5 + (JSON.parse(m[1]).pct ?? 0) * 0.95 }); } catch {}
   });

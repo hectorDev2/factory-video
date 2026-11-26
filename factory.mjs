@@ -24,6 +24,7 @@ import { FORMAT_IDS, PLATFORMS, readCopy, writeCopy, previewPlan } from "./gener
 import { LYRIC_STYLES, LYRIC_FONTS, LYRIC_POSITIONS } from "./lyrics.mjs";
 import { captureSite, normalizeUrl } from "./site.mjs";
 import { createTikTok } from "./tiktok.mjs";
+import { findBin, hasBin, NPX, NPX_ARGS } from "./bin.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = path.join(ROOT, "templates");
@@ -120,6 +121,11 @@ function render() {
 
 function ui() {
   const port = Number(flags.port ?? 4600);
+  // Ctrl+C es la forma normal de cerrar la interfaz: se sale con código 0. Sin esto, en Windows el proceso muere con
+  // 0xC000013A (STATUS_CONTROL_C_EXIT) y `npm run ui` lo informa como error (ELIFECYCLE + aviso de node_modules).
+  const shutdown = () => { console.log("\nFactory cerrada."); process.exit(0); };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
   // La URL de redirección tiene que coincidir EXACTA con la registrada en TikTok for Developers (Login Kit → Desktop).
   const tiktok = createTikTok({ dir: path.join(ROOT, "social"), outputDir: OUTPUT, redirectUri: `http://localhost:${port}/api/tiktok/callback/` });
   const tiktokCallback = async (req, res, q) => {
@@ -679,7 +685,7 @@ function ui() {
     },
     "POST /api/studio": async (req, res) => {
       const project = projectPath((await body(req)).project);
-      const r = await run("npx", ["--yes", `hyperframes@${HF_VERSION}`, "preview", "--background", "--json", "--no-open"], 90000, project);
+      const r = await run(NPX, [...NPX_ARGS, "--yes", `hyperframes@${HF_VERSION}`, "preview", "--background", "--json", "--no-open"], 90000, project);
       let info = null;
       try { info = JSON.parse(r.log.slice(r.log.indexOf("{"), r.log.lastIndexOf("}") + 1)).result; } catch {}
       if (!info?.studioUrl) return json(res, { error: "no se pudo abrir el Studio: " + (r.log.trim().split("\n").pop() || "sin detalle") }, 500);
@@ -783,7 +789,7 @@ function driveName(rel) {
 
 // ¿Está rclone listo con una cuenta de Google Drive? Se usa el primer remoto de tipo «drive».
 function driveStatus() {
-  if (spawnSync("which", ["rclone"]).status !== 0)
+  if (!hasBin("rclone"))
     return { installed: false, ready: false, hint: "Falta rclone. Instálalo con: brew install rclone" };
   const r = spawnSync("rclone", ["config", "dump"], { encoding: "utf8" });
   let remotes = {}; try { remotes = JSON.parse(r.stdout || "{}"); } catch {}
@@ -866,7 +872,7 @@ async function trackBeats(id) {
   const src = findTrack(id) ?? notFound();
   const cache = path.join(MUSIC, "_peaks", `${id}.beats.json`);
   if (fs.existsSync(cache) && fs.statSync(cache).mtimeMs > fs.statSync(src).mtimeMs) return JSON.parse(fs.readFileSync(cache, "utf8"));
-  const { ok, log } = await run("npx", ["--yes", `hyperframes@${HF_VERSION}`, "beats", src, "--json"], 180000);
+  const { ok, log } = await run(NPX, [...NPX_ARGS, "--yes", `hyperframes@${HF_VERSION}`, "beats", src, "--json"], 180000);
   let out = { bpm: null, beatTimes: [] };
   try { const j = JSON.parse(log.slice(log.indexOf("{"), log.lastIndexOf("}") + 1)); out = { bpm: j.bpm, beatTimes: j.beatTimes ?? [] }; } catch {}
   if (ok) { fs.mkdirSync(path.dirname(cache), { recursive: true }); fs.writeFileSync(cache, JSON.stringify(out)); }
@@ -945,9 +951,16 @@ async function body(req) {
 
 // Los binarios que spotDL instala en su propio entorno (uv tool install spotdl).
 function spotdlTool(name) {
-  const bin = spawnSync("which", ["spotdl"], { encoding: "utf8" }).stdout.trim();
+  const bin = findBin("spotdl");
   if (!bin) throw Object.assign(new Error("No encuentro spotdl. Instálalo con: uv tool install spotdl"), { status: 500 });
-  return path.join(path.dirname(fs.realpathSync(bin)), name);
+  // macOS/Linux: el spotdl del PATH es un enlace al entorno de la herramienta. Windows: es una copia, y el entorno
+  // está en la carpeta de herramientas de uv (%APPDATA%\uv\tools\spotdl\Scripts), con ejecutables .exe.
+  const win = process.platform === "win32", file = win ? `${name}.exe` : name;
+  const dirs = [path.dirname(fs.realpathSync(bin))];
+  if (win) dirs.push(path.join(process.env.UV_TOOL_DIR ?? path.join(process.env.APPDATA ?? "", "uv", "tools"), "spotdl", "Scripts"));
+  const found = dirs.map((d) => path.join(d, file)).find((f) => fs.existsSync(f));
+  if (!found) throw Object.assign(new Error(`No encuentro ${name} dentro del entorno de spotdl`), { status: 500 });
+  return found;
 }
 
 const INGEST = new Map();
@@ -961,7 +974,7 @@ function toolStatus() {
   return v;
 }
 function toolStatus0() {
-  const has = (b) => spawnSync("which", [b]).status === 0;
+  const has = hasBin;
   const ver = (b, a = ["--version"]) => { const r = spawnSync(b, a, { encoding: "utf8" }); return (r.stdout || r.stderr || "").split("\n")[0].trim().slice(0, 60); };
   const yt = ytdlpBin();
   return {
@@ -976,11 +989,12 @@ let ytCache = null;
 function ytdlpBin() {
   if (ytCache && Date.now() - ytCache.t < 600000) return ytCache.bin;
   const found = [];
-  const w = spawnSync("which", ["yt-dlp"], { encoding: "utf8" }).stdout.trim();
+  const w = findBin("yt-dlp");
   if (w) found.push(w);
   try { found.push(spotdlTool("yt-dlp")); } catch {}
-  const ver = (b) => spawnSync(b, ["--version"], { encoding: "utf8" }).stdout.trim();
-  const bin = found.map((b) => [b, ver(b)]).sort((a, b) => b[1].localeCompare(a[1]))[0]?.[0] ?? "yt-dlp";
+  // Si un candidato no arranca, stdout viene undefined: se descarta en vez de romper /api/state.
+  const ver = (b) => (spawnSync(b, ["--version"], { encoding: "utf8" }).stdout ?? "").trim();
+  const bin = found.map((b) => [b, ver(b)]).filter(([, v]) => v).sort((a, b) => b[1].localeCompare(a[1]))[0]?.[0] ?? "yt-dlp";
   ytCache = { t: Date.now(), bin };
   return bin;
 }
@@ -1312,7 +1326,7 @@ function probeDuration(file) {
 }
 function probeDuration0(file) {
   const r = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8" });
-  return Number(r.stdout.trim()) || 0;
+  return Number((r.stdout ?? "").trim()) || 0; // sin ffprobe: duración 0 en vez de tirar abajo la carga
 }
 
 // ---------- plantillas ----------
@@ -1343,7 +1357,7 @@ function readTemplate(name) {
 // ---------- utilidades ----------
 
 function hf(args, cwd) {
-  const r = spawnSync("npx", ["--yes", `hyperframes@${HF_VERSION}`, ...args], { cwd, stdio: "inherit" });
+  const r = spawnSync(NPX, [...NPX_ARGS, "--yes", `hyperframes@${HF_VERSION}`, ...args], { cwd, stdio: "inherit" });
   return r.status ?? 1;
 }
 

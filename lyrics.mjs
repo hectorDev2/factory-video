@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { askJson } from "./ai.mjs";
+import { hasBin, NPX, NPX_ARGS } from "./bin.mjs";
 
 export const LYRIC_STYLES = {
   karaoke: "Relleno karaoke: la palabra se llena de color mientras suena",
@@ -55,7 +56,7 @@ export function parakeetInstalled() {
 // del audio (y con música densa) Whisper puede estirar los tiempos; Parakeet es más fiable (ver README).
 // Devuelve null si falta el programa o el modelo (entonces se usa hyperframes, que descarga el modelo).
 export function whisperWords({ project, model, language }) {
-  const bin = ["whisper-cli", "whisper-cpp"].find((b) => spawnSync("which", [b]).status === 0);
+  const bin = ["whisper-cli", "whisper-cpp"].find(hasBin);
   const modelFile = path.join(os.homedir(), ".cache", "hyperframes", "whisper", "models", `ggml-${model}.bin`);
   if (!bin || !fs.existsSync(modelFile)) return null;
   const wav = path.join(project, "assets", "audio16k.wav"), base = path.join(project, "assets", "whisper");
@@ -384,7 +385,7 @@ export async function makeLyrics({ root, req, update, deps }) {
   step("Preparando el proyecto", 3);
   fs.rmSync(project, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(project), { recursive: true });
-  await run("npx", [...HF, "init", req.name, "--example", "blank", "--resolution", fmt.base === "square" ? "portrait" : fmt.base, "--non-interactive", "--skip-skills", "--skill=hyperframes"], path.dirname(project));
+  await run(NPX, [...NPX_ARGS, ...HF, "init", req.name, "--example", "blank", "--resolution", fmt.base === "square" ? "portrait" : fmt.base, "--non-interactive", "--skip-skills", "--skill=hyperframes"], path.dirname(project));
   if (!fs.existsSync(path.join(project, "index.html"))) throw new Error("hyperframes init no creó el proyecto");
   fs.mkdirSync(path.join(project, "assets"), { recursive: true });
   fs.mkdirSync(path.join(project, "compositions"), { recursive: true });
@@ -405,7 +406,7 @@ export async function makeLyrics({ root, req, update, deps }) {
   const lang = ["es", "en"].includes(req.language) ? ["--language", req.language] : [];
   const model = lang.length && req.language === "en" ? "small.en" : "small";
   // hyperframes instalaría whisper-cpp con Homebrew por su cuenta; aquí se exige que lo hayas instalado tú.
-  const hasWhisper = ["whisper-cli", "whisper-cpp", "whisper"].some((b) => spawnSync("which", [b]).status === 0);
+  const hasWhisper = ["whisper-cli", "whisper-cpp", "whisper"].some(hasBin);
   if (!hasWhisper) throw new Error("Falta el programa de transcripción. Instálalo una vez con: brew install whisper-cpp (y vuelve a intentarlo).");
   const language = ["es", "en"].includes(req.language) ? req.language : "auto";
   // Motor de voz: Parakeet (tiempos por cuadros de 0,08 s, más regulares y sin inventar voz en una intro) si está
@@ -413,7 +414,7 @@ export async function makeLyrics({ root, req, update, deps }) {
   let words = null, engine = "whisper";
   if (req.engine !== "whisper" && parakeetInstalled()) {
     try {
-      await run("npx", [...HF, "transcribe", "assets/audio.m4a", "--engine", "parakeet", ...lang, "--json"], project);
+      await run(NPX, [...NPX_ARGS, ...HF, "transcribe", "assets/audio.m4a", "--engine", "parakeet", ...lang, "--json"], project);
       const tfile = ["assets/transcript.json", "transcript.json"].map((f) => path.join(project, f)).find((f) => fs.existsSync(f));
       const w = tfile ? readWords(tfile) : [];
       if (w.length >= 3) { words = w; engine = "parakeet"; }
@@ -423,7 +424,7 @@ export async function makeLyrics({ root, req, update, deps }) {
     words = whisperWords({ project, model, language });
     if (!words) {
       // Primera vez: hyperframes descarga el modelo; después se usa Whisper directo (una palabra por segmento).
-      await run("npx", [...HF, "transcribe", "assets/audio.m4a", "--model", model, ...lang, "--no-runtime-install", "--json"], project);
+      await run(NPX, [...NPX_ARGS, ...HF, "transcribe", "assets/audio.m4a", "--model", model, ...lang, "--no-runtime-install", "--json"], project);
       words = whisperWords({ project, model, language });
       if (!words) {
         const tfile = ["assets/transcript.json", "transcript.json"].map((f) => path.join(project, f)).find((f) => fs.existsSync(f));
@@ -452,7 +453,7 @@ export async function makeLyrics({ root, req, update, deps }) {
   fs.writeFileSync(path.join(project, "index.html"), indexHtml({ fmt, duration: dur }));
 
   step("Comprobando la composición", 62);
-  const check = spawnSync("npx", [...HF, "check", "--json"], { cwd: project, encoding: "utf8", maxBuffer: 1 << 26 });
+  const check = spawnSync(NPX, [...NPX_ARGS, ...HF, "check", "--json"], { cwd: project, encoding: "utf8", maxBuffer: 1 << 26 });
   try {
     const report = JSON.parse(check.stdout.slice(check.stdout.indexOf("{")));
     const errors = Object.values(report).flatMap((v) => v?.findings ?? []).filter((f) => f.severity === "error" && f.code !== "contrast_aa_failure");
@@ -461,7 +462,7 @@ export async function makeLyrics({ root, req, update, deps }) {
 
   step("Renderizando", 66);
   fs.mkdirSync(path.dirname(output), { recursive: true });
-  await run("npx", [...HF, "render", "-o", output, "--quality", req.quality ?? "looks"], project, (line) => {
+  await run(NPX, [...NPX_ARGS, ...HF, "render", "-o", output, "--quality", req.quality ?? "looks"], project, (line) => {
     const m = line.match(/^@hf-progress (\{.*\})/);
     if (m) try { update({ pct: 66 + (JSON.parse(m[1]).pct ?? 0) * 0.34 }); } catch {}
   });

@@ -15,6 +15,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { hasBin } from "./bin.mjs";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG = path.join(ROOT, "ai-config.json");
@@ -54,7 +55,7 @@ export function parseSpec(s) {
 export const specToString = ({ provider, model }) => `${provider}:${model}`;
 export const specLabel = ({ provider, model }) => `${PROVIDERS[provider].label}${model ? ` · ${model}` : ""}`;
 
-const has = (bin) => spawnSync("which", [bin]).status === 0;
+const has = hasBin;
 
 // Estado para la interfaz: qué hay instalado y si parece tener sesión.
 export function aiStatus() {
