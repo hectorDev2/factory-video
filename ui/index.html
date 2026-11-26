@@ -269,6 +269,8 @@
 .img-item img{display:block;width:100%;aspect-ratio:3/4;object-fit:cover}
 .img-item .lic{position:absolute;top:6px;left:6px;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(0,0,0,.72);color:#fff}
 .img-item .lic.by{background:#b45309}
+.lic.exp{background:#b91c1c;color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px}
+.exp-warn{color:#f87171}
 .img-item .meta{padding:6px 8px;font-size:11px;line-height:1.3;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .img-item .btn{margin:0 8px 8px}
 .img-item.added{outline:2px solid #22c55e}
@@ -1703,15 +1705,20 @@ function bindSite(name, site) {
 // Tarjeta «Descargar un video por enlace» (yt-dlp).
 function bindDownload(name, opts = {}) {
   const fmt = (x) => `${Math.floor(x / 60)}:${(x % 60).toFixed(1).padStart(4, "0")}`;
-  const progress = async (id, onDone) => {
+  let jobId = null;
+  const progress = async (id) => {
+    jobId = id;
     for (;;) {
       const r = await api("/api/media/ingest/status?id=" + encodeURIComponent(id));
-      $("#dlBar").style.width = `${r.pct ?? 2}%`; $("#dlPhase").textContent = `${r.phase ?? ""}… ${Math.round(r.pct ?? 0)}%`;
-      if (r.status === "listo") return r;
-      if (r.status === "falló") throw new Error(r.error);
+      const secs = Math.round((Date.now() - (r.startedAt ?? Date.now())) / 1000), quiet = Date.now() - (r.updatedAt ?? Date.now()) > 40000;
+      $("#dlBar").style.width = `${r.pct ?? 2}%`;
+      $("#dlPhase").textContent = `${r.phase ?? ""}… ${Math.round(r.pct ?? 0)}% · ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}${quiet ? " · sin novedades; a veces el sitio tarda, puedes cancelar" : ""}`;
+      if (r.status === "listo") { jobId = null; return r; }
+      if (r.status === "falló") { jobId = null; throw new Error(r.error); }
       await new Promise((ok) => setTimeout(ok, 1000));
     }
   };
+  $("#dlCancel").onclick = () => { if (jobId) api("/api/media/ingest/cancel", { id: jobId }).catch(() => {}); };
   const busy = (on, label) => {
     $("#dlBtn").disabled = on; $("#dlPick").disabled = on; $("#dlProg").hidden = !on;
     if (on) { $("#dlBar").style.width = "2%"; $("#dlPhase").textContent = label; }
@@ -2146,7 +2153,7 @@ function fichaContent(body, name, info, songs) {
   body.innerHTML = `
     <div class="toolbar">
       <div class="dropmenu"><button class="btn violet-solid" id="addBtn">＋ Añadir contenido ⌄</button>
-        <div class="menu" hidden id="addMenu"><button data-a="files">Subir archivos…</button><button data-a="dir">Subir una carpeta…</button><button data-a="web">Importar de la web</button><button data-a="dl">Descargar un video por enlace</button><button data-a="img">Buscar imágenes libres</button><button data-a="folder">Crear carpeta…</button></div></div>
+        <div class="menu" hidden id="addMenu"><button data-a="files">Subir archivos…</button><button data-a="dir">Subir una carpeta…</button><button data-a="web">Importar de la web</button><button data-a="dl">Descargar un video por enlace</button><button data-a="img">Buscar o descargar imágenes</button><button data-a="folder">Crear carpeta…</button></div></div>
       <div class="seg2"><button data-m="cards" class="${state.fview !== "list" ? "on" : ""}" title="Carpetas">▦</button><button data-m="list" class="${state.fview === "list" ? "on" : ""}" title="Todo el contenido">☰</button></div>
       <form class="row" id="newFolder" hidden style="margin:0"><input id="folderName" placeholder="Nueva carpeta, p. ej. promociones" /><button class="btn">Crear carpeta</button></form>
       <span class="hint grow"></span>
@@ -2210,71 +2217,90 @@ function showDl(name, url, opts = {}) {
       <div class="row pk-row"><button class="btn" id="pkPlay" type="button">▶ Escuchar el tramo</button><button class="btn primary" id="pkGo" type="button">Descargar fragmento</button><button class="btn" id="pkCancel" type="button">Cancelar</button></div>
     </div>
     <div id="dlResults" class="dl-results"></div>
-    <div id="dlProg" hidden><div class="progress"><div id="dlBar"></div></div><b class="hint" id="dlPhase"></b></div></section>`;
+    <div id="dlProg" hidden><div class="progress"><div id="dlBar"></div></div><div class="row" style="margin:6px 0 0;gap:10px"><b class="hint" id="dlPhase"></b><button class="linkbtn" id="dlCancel" type="button">Cancelar</button></div></div></section>`;
   if ($("#dlClose")) $("#dlClose").onclick = () => (box.hidden = true);
   bindDownload(name, opts);
   if (url) { $("#dlUrl").value = url; }
   $("#dlUrl").focus(); box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-// Tarjeta «Buscar imágenes libres» (Openverse: CC0 / dominio público; CC BY opcional, con crédito guardado).
+// Tarjeta «Buscar imágenes» (Openverse, Wikimedia, Pexels, Unsplash, Pixabay, o por enlace de cualquier sitio).
+// MODO EXPERIMENTAL: con «Todas las licencias» y por enlace se guardan fotos sin licencia de uso comercial;
+// quedan marcadas como experimentales en .sources.json (igual que la música descargada).
 function showImg(name) {
   const box = $("#imgCard"); box.hidden = false;
-  box.innerHTML = `<section class="card2 webcard"><div class="wz-card-h"><h3>Buscar imágenes libres</h3><button class="linkbtn" id="imgClose">Cerrar</button></div>
+  box.innerHTML = `<section class="card2 webcard"><div class="wz-card-h"><h3>Buscar imágenes</h3><button class="linkbtn" id="imgClose">Cerrar</button></div>
     <p class="hint" id="imgHint"></p>
     <form class="row" id="imgForm" style="margin:0;flex-wrap:wrap">
-      <select id="imgSrc" style="width:auto"><option value="openverse">Openverse</option><option value="pexels">Pexels</option></select>
+      <select id="imgSrc" style="width:auto"><option value="openverse">Openverse</option><option value="wikimedia">Wikimedia Commons</option><option value="pexels">Pexels</option><option value="unsplash">Unsplash</option><option value="pixabay">Pixabay</option></select>
       <input id="imgQ" placeholder="Qué buscas, p. ej. «café con leche», «playa al atardecer»" style="flex:1;min-width:220px" />
       <select id="imgOr" style="width:auto"><option value="">Cualquier forma</option><option value="vertical" selected>Vertical (reels)</option><option value="horizontal">Horizontal</option><option value="cuadrada">Cuadrada</option></select>
+      <select id="imgLic" style="width:auto" title="«Todas» incluye fotos sin permiso de uso comercial (NC/ND): solo para pruebas"><option value="todas" selected>Todas las licencias (experimental)</option><option value="credito">Uso comercial con crédito (CC BY)</option><option value="libres">Solo libres (CC0 / dominio público)</option></select>
       <label class="hint">Carpeta <input id="imgFolder" value="stock" style="width:110px" /></label>
-      <label class="hint" id="imgByL" title="CC BY exige poner el nombre del autor al publicar. El crédito queda en .sources.json."><input type="checkbox" id="imgBy" style="width:auto" /> incluir CC BY (pide crédito)</label>
       <button class="btn primary" id="imgBtn">Buscar</button>
+    </form>
+    <form class="row" id="imgUrlForm" style="margin:8px 0 0;flex-wrap:wrap">
+      <input id="imgUrl" placeholder="…o pega el enlace de una imagen o de una página de cualquier sitio (https://…)" style="flex:1;min-width:260px" />
+      <button class="btn" id="imgUrlBtn">Descargar imagen</button>
     </form>
     <b class="hint" id="imgStatus"></b>
     <div class="img-grid" id="imgGrid"></div>
     <div class="row" style="justify-content:center;margin-top:10px"><button class="btn" id="imgMore" type="button" hidden>Más resultados</button></div></section>`;
   const st = { q: "", page: 1, pages: 1, added: 0 };
-  const WARN = ' La licencia cubre los derechos, <b>no garantiza que la foto no traiga una marca de agua</b>: toca la miniatura para verla en grande antes de añadirla.';
+  const EXP = ' <b class="exp-warn">Modo experimental:</b> las marcadas <span class="lic exp">EXP</span> no tienen permiso de uso comercial; sirven para probar, no para publicar anuncios. Quedan señaladas en <code>.sources.json</code>.';
+  const KEYS = {
+    pexels: ["PEXELS_API_KEY", "https://www.pexels.com/api/"],
+    unsplash: ["UNSPLASH_ACCESS_KEY", "https://unsplash.com/developers"],
+    pixabay: ["PIXABAY_API_KEY", "https://pixabay.com/api/docs/"],
+  };
   const HINTS = {
-    openverse: 'Fotos de <a href="https://openverse.org" target="_blank" rel="noopener">Openverse</a> con licencia <b>CC0 o dominio público</b>: se pueden usar en anuncios sin pedir permiso ni dar crédito. Se guardan en la carpeta que elijas y entran al video como cualquier otra imagen.' + WARN,
-    pexels: '<a href="https://www.pexels.com" target="_blank" rel="noopener">Fotos de Pexels</a>: stock de buena calidad, uso comercial gratis y sin crédito obligatorio (no se puede revender la foto tal cual ni usar a personas reconocibles para avalar un producto). Se guardan en la carpeta que elijas.' + WARN,
-    pexelsOff: '<b>Pexels necesita una clave gratis.</b> Créala en <a href="https://www.pexels.com/api/" target="_blank" rel="noopener">pexels.com/api</a> y arranca la factory con <code>PEXELS_API_KEY=tu-clave npm run ui</code> (en PowerShell: <code>$env:PEXELS_API_KEY="tu-clave"; npm run ui</code>).',
+    openverse: 'Fotos de <a href="https://openverse.org" target="_blank" rel="noopener">Openverse</a> (Flickr, museos, Wikimedia…). Elige el filtro de licencia.',
+    wikimedia: 'Fotos de <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a>, sin clave. Muchas piden crédito (CC BY-SA).',
+    pexels: '<a href="https://www.pexels.com" target="_blank" rel="noopener">Pexels</a>: stock de calidad, uso comercial gratis y sin crédito obligatorio.',
+    unsplash: '<a href="https://unsplash.com" target="_blank" rel="noopener">Unsplash</a>: las mejores fotos de stock, uso comercial gratis y sin crédito obligatorio.',
+    pixabay: '<a href="https://pixabay.com" target="_blank" rel="noopener">Pixabay</a>: stock gratis para uso comercial (máx. 1280 px en el lado largo).',
   };
   const srcSel = $("#imgSrc");
-  const avail = { openverse: true, pexels: false };
+  $$("option", srcSel).forEach((o) => (o.dataset.name = o.textContent));
+  const offHint = (s) => { const [env, url] = KEYS[s]; return `<b>${$(`option[value=${s}]`, srcSel).dataset.name} necesita una clave gratis.</b> Créala en <a href="${url}" target="_blank" rel="noopener">${url.replace(/^https:\/\//, "")}</a> y arranca la factory con <code>${env}=tu-clave npm run ui</code> (en PowerShell: <code>$env:${env}="tu-clave"; npm run ui</code>).`; };
+  const avail = { openverse: true, wikimedia: true, pexels: false, unsplash: false, pixabay: false };
   const onSource = () => {
     const s = srcSel.value, off = !avail[s];
-    $("#imgHint").innerHTML = off ? HINTS[s + "Off"] : HINTS[s];
-    $("#imgByL").hidden = s !== "openverse";
+    $("#imgHint").innerHTML = (off ? offHint(s) : HINTS[s]) + EXP;
+    $("#imgLic").hidden = s !== "openverse";
     $("#imgBtn").disabled = off;
     $("#imgGrid").innerHTML = ""; $("#imgStatus").textContent = ""; $("#imgMore").hidden = true;
   };
   srcSel.onchange = onSource;
   onSource();
-  // Pexels se elige por defecto si tiene clave: sus fotos suelen ser mejores para anuncios.
+  // Con clave, la mejor fuente de stock disponible va por defecto: Unsplash > Pexels > Pixabay > Openverse.
   api("/api/image/sources").then(({ sources }) => {
     for (const s of sources) avail[s.id] = s.available;
-    $("option[value=pexels]", srcSel).textContent = avail.pexels ? "Pexels" : "Pexels (sin clave)";
-    if (avail.pexels) srcSel.value = "pexels";
+    for (const id of Object.keys(KEYS)) { const o = $(`option[value=${id}]`, srcSel); o.textContent = avail[id] ? o.dataset.name : `${o.dataset.name} (sin clave)`; }
+    const best = ["unsplash", "pexels", "pixabay"].find((id) => avail[id]);
+    if (best) srcSel.value = best;
     onSource();
   }).catch(() => {});
   $("#imgClose").onclick = () => { box.hidden = true; box.innerHTML = ""; if (st.added) openClient(name); };
+  const folder = () => slug($("#imgFolder").value) || "stock";
 
   const card = (r) => {
     const el = document.createElement("div"); el.className = "img-item";
     el.innerHTML = `<a target="_blank" rel="noopener noreferrer" title="Ver en grande"><img alt="" loading="lazy" referrerpolicy="no-referrer" /></a><span class="lic"></span><div class="meta"></div><button class="btn" type="button">＋ Añadir</button>`;
     $("a", el).href = r.full; $("img", el).src = r.thumb; $("img", el).alt = r.title;
-    const lic = $(".lic", el); lic.textContent = r.license; if (r.needsCredit) { lic.classList.add("by"); lic.title = "Pide dar crédito al autor"; }
+    const lic = $(".lic", el); lic.textContent = r.experimental ? `EXP · ${r.license}` : r.license;
+    if (r.experimental) { lic.classList.add("exp"); lic.title = "Sin permiso de uso comercial: solo para pruebas"; }
+    else if (r.needsCredit) { lic.classList.add("by"); lic.title = "Pide dar crédito al autor"; }
     $(".meta", el).textContent = [r.creator, r.w && r.h ? `${r.w}×${r.h}` : "", r.source].filter(Boolean).join(" · ");
     $(".meta", el).title = r.title;
     const btn = $(".btn", el);
     btn.onclick = async () => {
       btn.disabled = true; btn.textContent = "Añadiendo…";
       try {
-        const folder = slug($("#imgFolder").value) || "stock";
-        const out = await api("/api/media/image", { client: name, folder, id: r.id });
+        const f = folder();
+        const out = await api("/api/media/image", { client: name, folder: f, id: r.id });
         st.added++; el.classList.add("added"); btn.textContent = "✓ Añadida";
-        toast(out.needsCredit ? `Guardada en ${folder}/. Al publicar, acredita: ${out.credit}` : `Guardada en ${folder}/${out.file}`);
+        toast(out.experimental ? `Guardada en ${f}/ como EXPERIMENTAL (sin licencia comercial)` : out.needsCredit ? `Guardada en ${f}/. Al publicar, acredita: ${out.credit}` : `Guardada en ${f}/${out.file}`);
       } catch (err) { btn.disabled = false; btn.textContent = "＋ Añadir"; toast(err.message, true); }
     };
     return el;
@@ -2285,17 +2311,29 @@ function showImg(name) {
     if (!append) grid.innerHTML = "";
     status.textContent = "Buscando…"; $("#imgBtn").disabled = $("#imgMore").disabled = true;
     try {
-      const p = new URLSearchParams({ q: st.q, page: st.page, source: srcSel.value, orientation: $("#imgOr").value, credit: srcSel.value === "openverse" && $("#imgBy").checked ? "1" : "0" });
+      const p = new URLSearchParams({ q: st.q, page: st.page, source: srcSel.value, orientation: $("#imgOr").value, licenses: $("#imgLic").value });
       const { results, total, pages } = await api("/api/image/search?" + p);
       st.pages = pages;
       results.forEach((r) => grid.append(card(r)));
-      status.textContent = grid.children.length ? `${total.toLocaleString("es")} resultados` : "Sin resultados. Prueba otras palabras (en inglés suele haber más) o marca «incluir CC BY».";
+      status.textContent = grid.children.length ? `${total.toLocaleString("es")} resultados` : "Sin resultados. Prueba otras palabras (en inglés suele haber más) u otra fuente.";
       $("#imgMore").hidden = st.page >= st.pages || !results.length;
     } catch (err) { status.textContent = ""; toast(err.message, true); }
-    $("#imgBtn").disabled = $("#imgMore").disabled = false;
+    $("#imgBtn").disabled = !avail[srcSel.value]; $("#imgMore").disabled = false;
   };
   $("#imgForm").onsubmit = (e) => { e.preventDefault(); st.q = $("#imgQ").value.trim(); if (!st.q) return; st.page = 1; load(false); };
   $("#imgMore").onclick = () => { st.page++; load(true); };
+  $("#imgUrlForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const url = $("#imgUrl").value.trim(); if (!url) return;
+    const btn = $("#imgUrlBtn"); btn.disabled = true; btn.textContent = "Descargando…";
+    try {
+      const f = folder();
+      const out = await api("/api/media/image-url", { client: name, folder: f, url });
+      st.added++; $("#imgUrl").value = "";
+      toast(`Guardada en ${f}/${out.file} (de ${out.host}, EXPERIMENTAL)`);
+    } catch (err) { toast(err.message, true); }
+    btn.disabled = false; btn.textContent = "Descargar imagen";
+  };
   $("#imgQ").focus(); box.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
