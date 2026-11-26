@@ -80,14 +80,18 @@ export function createMotion({ root, output }) {
   }
 
   // Corre el render del kit en segundo plano y deja el avance en estado.json.
+  const jobs = new Map();
   function spawnJob(dir, args, state, onDone) {
     writeState(dir, { ...state, status: "trabajando", startedAt: Date.now(), log: "" });
-    const p = spawn("node", [path.join("scripts", "render.mjs"), ...args], { cwd: dir, env: { ...process.env, ...chromeEnv() } });
+    const p = spawn("node", [path.join("scripts", "render.mjs"), ...args], { cwd: dir, detached: true, env: { ...process.env, ...chromeEnv() } });
+    jobs.set(dir, p);
     let log = "";
     const feed = (d) => { log += d; writeState(dir, { ...state, status: "trabajando", startedAt: state.startedAt ?? Date.now(), log: log.slice(-1500) }); };
     p.stdout.on("data", feed); p.stderr.on("data", feed);
     p.on("error", (e) => writeState(dir, { ...state, status: "falló", error: e.message }));
     p.on("close", (code) => {
+      jobs.delete(dir);
+      if (readState(dir)?.status === "cancelado") return;
       if (code !== 0) return writeState(dir, { ...state, status: "falló", error: log.trim().split("\n").slice(-3).join(" ").slice(0, 300) || `terminó con código ${code}` });
       try { writeState(dir, { ...state, status: "listo", ...(onDone?.() ?? {}) }); } catch (e) { writeState(dir, { ...state, status: "falló", error: e.message }); }
     });
@@ -118,11 +122,20 @@ export function createMotion({ root, output }) {
     return { dir: path.basename(dir), duration: tpl.duracion };
   }
 
+  // Cancela un render o una vista previa en marcha: detiene el kit y el navegador que lanzó.
+  function cancel(client, name) {
+    const dir = dirOf(client, name), p = jobs.get(dir);
+    if (!p) throw fail("esa pieza no se está procesando");
+    const kill = (sig) => { try { process.kill(-p.pid, sig); } catch { try { p.kill(sig); } catch {} } };
+    kill("SIGTERM"); setTimeout(() => kill("SIGKILL"), 4000).unref();
+    writeState(dir, { ...(readState(dir) ?? {}), status: "cancelado", error: "Lo cancelaste." });
+    return { ok: true };
+  }
   const jobStatus = (client, name) => readState(dirOf(client, name)) ?? { status: "nada" };
   function sheetPath(client, name, id) {
     const f = path.join(dirOf(client, name), "resultados", "hojas", `${path.basename(String(id))}.jpg`);
     return fs.existsSync(f) ? f : null;
   }
 
-  return { catalog, status, preview, render, jobStatus, sheetPath };
+  return { catalog, status, preview, render, jobStatus, sheetPath, cancel };
 }

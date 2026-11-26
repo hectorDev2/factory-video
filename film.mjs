@@ -6,6 +6,9 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { parseSpec } from "./ai.mjs";
 
+// Duración de un audio (sin importar song.mjs: ese módulo importa generate.mjs y haría un ciclo).
+const probeDuration = (file) => Number(spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8" }).stdout) || 0;
+
 export const filmTools = (lib) => [
   "Read", "Write", "Edit", "Glob", "Grep", "TodoWrite",
   "Bash(sh:*)", "Bash(bash:*)", "Bash(python3:*)", "Bash(python:*)", "Bash(node:*)", "Bash(npm:*)", "Bash(npx:*)", "Bash(uv:*)", "Bash(ffmpeg:*)", "Bash(ffprobe:*)",
@@ -52,8 +55,9 @@ export function filmPrompt({ root, req, project }) {
     "",
     "ENCARGO (ya está todo decidido: no hagas preguntas, no pidas storyboard, decide tú lo que falte):",
     `- Idioma de la voz y de los subtítulos: ${req.language === "en" ? "inglés" : "español"}.`,
-    `- Formato: ${size}. Duración objetivo: unos ${req.seconds} segundos.`,
-    `- ${req.voice ? "Con narración (voz sintética) y subtítulos incrustados." : "Sin narración: solo música y efectos; los textos van en pantalla."}`,
+    req.song ? `- MÚSICA ELEGIDA: el audio ya está en ${req.song.file} (${req.song.seconds} s). Es la banda sonora y es de la persona: úsalo tal cual (no compongas ni reemplaces música, no lo estires ni lo repitas). La película dura EXACTAMENTE ${req.song.seconds} s. Detecta sus beats con las herramientas de la biblioteca y haz que los cortes y los golpes visuales caigan en ellos. Sin narración: la letra puede aparecer como texto en pantalla (subtítulos animados) según el estilo. Mezcla solo foley suave por debajo de la música.` : "",
+    `- Formato: ${size}. Duración objetivo: ${req.song ? `exactamente ${req.song.seconds}` : `unos ${req.seconds}`} segundos.`,
+    req.song ? "" : `- ${req.voice ? "Con narración (voz sintética) y subtítulos incrustados." : "Sin narración: solo música y efectos; los textos van en pantalla."}`,
     req.brand ? `- Marca o cliente: ${req.brand}. Puede aparecer su nombre, sin inventar logos.` : "",
     "- La película debe seguir este GUION. Cada párrafo o línea es una escena: respeta su orden y su idea, y reparte el tiempo entre ellas. No inventes datos, cifras ni citas que el guion no traiga.",
     "",
@@ -73,9 +77,16 @@ export async function makeFilm({ root, req, update, deps }) {
   const output = path.join(root, "output", "film", req.client, `${req.name}.mp4`);
   fs.mkdirSync(project, { recursive: true });
   fs.writeFileSync(path.join(project, "GUION.md"), req.script);
+  if (req.song) {
+    const frag = path.join(project, "music", "fragment.mp3");
+    if (!fs.existsSync(frag)) throw new Error("falta el fragmento de la canción: vuelve a armar el guion");
+    req.song = { file: frag, seconds: Math.round(probeDuration(frag) * 10) / 10 };
+  }
   const step = (phase, pct) => update({ phase, ...(pct != null ? { pct } : {}) });
   step(`La IA dirige la película (estilo ${req.styleName})`, 8);
-  const claude = await deps.runClaude(filmPrompt({ root, req, project }), project, update, {
+  const prompt = req.resume ? "Continúa donde lo dejaste: revisa lo que ya hay en esta carpeta (TREATMENT.md, voz, código, renders parciales), termina la película según el encargo original y deja final.mp4. No empieces de cero ni hagas preguntas." : filmPrompt({ root, req, project });
+  const claude = await deps.runClaude(prompt, project, update, {
+    resume: req.resume || undefined,
     model: parseSpec(req.model).model || "sonnet", tools: filmTools(lib), effort: req.effort === "high" ? "high" : "medium", pctStep: 0.25, pctCap: 94, timeoutMs: FILM_TIMEOUT_MS, addDirs: [lib], env: { LEMO_OPUSCAR_HOME: lib },
   });
   const fail = (msg) => Object.assign(new Error(msg), { project: path.relative(root, project), session: claude.session, limit: claude.limit });
