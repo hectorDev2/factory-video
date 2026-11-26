@@ -9,6 +9,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { askJson } from "./ai.mjs";
 
 export const LYRIC_STYLES = {
   karaoke: "Relleno karaoke: la palabra se llena de color mientras suena",
@@ -31,27 +32,6 @@ const LINES_SCHEMA = {
     },
   },
 };
-
-function askJson(text, schema, model) {
-  return new Promise((resolve, reject) => {
-    const args = ["-p", text, "--output-format", "json", "--tools", "", "--disable-slash-commands", "--no-session-persistence", "--effort", "low", "--model", model || "sonnet", "--json-schema", JSON.stringify(schema)];
-    const child = spawn("claude", args, { cwd: os.tmpdir(), env: { ...process.env, HYPERFRAMES_SKIP_SKILLS: "1" } });
-    let out = "", err = "";
-    child.stdout.on("data", (d) => (out += d));
-    child.stderr.on("data", (d) => (err += d));
-    const timer = setTimeout(() => { child.kill(); reject(new Error("Claude tardó demasiado (4 min)")); }, 240000);
-    child.on("error", (e) => reject(new Error(e.code === "ENOENT" ? "no encuentro el CLI `claude`" : e.message)));
-    child.on("close", () => {
-      clearTimeout(timer);
-      let ev; try { ev = JSON.parse(out); } catch { return reject(new Error(`respuesta ilegible de Claude: ${(out || err).trim().slice(0, 200)}`)); }
-      const t = String(ev.result ?? "");
-      if (ev.is_error) return reject(new Error(/hit your .*limit|usage limit|resets \d/i.test(t) ? `Claude: ${t.trim()}` : `Claude falló: ${t.trim().slice(0, 200)}`));
-      let spec = ev.structured_output;
-      if (!spec) { const m = t.match(/\{[\s\S]*\}/); try { spec = m && JSON.parse(m[0]); } catch {} }
-      spec ? resolve(spec) : reject(new Error("Claude no devolvió una letra válida"));
-    });
-  });
-}
 
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const r3 = (n) => Math.round(n * 1000) / 1000;
@@ -350,7 +330,7 @@ function probe(file) {
   return Number(r.stdout) || 0;
 }
 
-// Claude corrige y traduce la letra. Una transcripción larga se manda por partes (~260 palabras, sin cortar una frase).
+// La IA corrige y traduce la letra. Una transcripción larga se manda por partes (~260 palabras, sin cortar una frase).
 export async function correctWords({ words, dur, model, step }) {
   const CH = 260, parts = [];
   let i = 0;
@@ -361,7 +341,7 @@ export async function correctWords({ words, dur, model, step }) {
   }
   const lines = []; let lang = null;
   for (const [n, [a, b]] of parts.entries()) {
-    if (parts.length > 1) step(`Claude corrige y traduce la letra (parte ${n + 1} de ${parts.length})`, 40 + Math.round((n / parts.length) * 14));
+    if (parts.length > 1) step(`La IA corrige y traduce la letra (parte ${n + 1} de ${parts.length})`, 40 + Math.round((n / parts.length) * 14));
     const numbered = words.slice(a, b).map((w, k) => `${a + k}:${w.text}`).join(" ");
     const spec = await askJson(`Eres un editor de letras y subtítulos para videos. Abajo hay la transcripción automática (palabra por palabra, con su número de orden) de ${Math.round(words[b - 1].end - words[a].start)} s de una canción o un discurso. Puede tener errores.${parts.length > 1 ? `\nEsta es la parte ${n + 1} de ${parts.length} de una transcripción más larga${lang ? `; el idioma original ya se determinó: "${lang}"` : ""}.` : ""}
 
@@ -377,6 +357,12 @@ Transcripción:
 ${numbered}`, LINES_SCHEMA, model);
     lang ??= spec.lang;
     lines.push(...spec.lines);
+  }
+  // «hot» (frase fuerte) es escaso por definición: como mucho 1 de cada 8 líneas, repartidas, aunque la IA marque más.
+  const hot = lines.map((l, i) => (l.hot ? i : -1)).filter((i) => i >= 0), allowed = Math.max(1, Math.ceil(lines.length / 8));
+  if (hot.length > allowed) {
+    const keep = new Set(Array.from({ length: allowed }, (_, k) => hot[Math.floor(((k + 0.5) * hot.length) / allowed)]));
+    lines.forEach((l, i) => { if (l.hot && !keep.has(i)) l.hot = false; });
   }
   return { lang: lang ?? "es", lines };
 }
@@ -450,7 +436,7 @@ export async function makeLyrics({ root, req, update, deps }) {
   fs.writeFileSync(path.join(project, "assets", "words.json"), JSON.stringify({ engine, words }));
   if (words.length < 3) throw new Error("No se oye letra en este fragmento (probé con el modelo multilingüe). Prueba con otro tramo o con una canción con voz clara.");
 
-  step("Claude corrige y traduce la letra", 40);
+  step("La IA corrige y traduce la letra", 40);
   const spec = await correctWords({ words, dur, model: req.model, step });
 
   step("Armando los efectos", 55);
@@ -459,7 +445,7 @@ export async function makeLyrics({ root, req, update, deps }) {
   const main = req.show === "es" || req.show === "en" ? req.show : original;
   const sub = req.show === "both" || !req.show ? other : null;
   const lines = buildLines(words, spec, main, sub, dur);
-  if (!lines.length) throw new Error("Claude no encontró versos que mostrar en este fragmento.");
+  if (!lines.length) throw new Error("La IA no encontró versos que mostrar en este fragmento.");
   if (style === "dynamic") planDynamic(lines, path.join(project, "assets", "audio.m4a"), accent);
   fs.writeFileSync(path.join(project, "lyrics.json"), JSON.stringify({ lang: spec.lang, style, accent, lines }, null, 1));
   fs.writeFileSync(path.join(project, "compositions", "lyrics.html"), sceneHtml({ lines, style, accent, fmt, duration: dur, font: req.font, position: req.position }));

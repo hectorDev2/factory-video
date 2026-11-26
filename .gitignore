@@ -10,3 +10,5 @@ music/*
 media/
 projects/
 runs/
+ai-config.json
+drive-sent.json

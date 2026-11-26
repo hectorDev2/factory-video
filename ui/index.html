@@ -678,6 +678,12 @@ dialog.lyr-dlg .ly-foot { flex: none; border-top: 1px solid var(--line); border-
 .cc-actions .btn { flex: 1; padding: 7px 8px; font-size: 12px; }
 p.warn { color: var(--warn); margin: 0 0 10px; }
 @media (max-width: 900px) { .form-grid { grid-template-columns: 1fr; } .kv > div { grid-template-columns: 1fr; } }
+
+.ailist { display: grid; gap: 6px; margin-top: 12px; }
+.ai-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--bg); border-radius: 8px; font-size: 12px; }
+.ai-row b { min-width: 74px; font-size: 13px; }
+.dot-warn { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+.dv { position: absolute; left: 8px; bottom: 8px; z-index: 2; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(66,133,244,.92); color: #fff; }
 </style>
 </head>
 <body>
@@ -829,7 +835,7 @@ p.warn { color: var(--warn); margin: 0 0 10px; }
                 </div>
                 <select id="quality" hidden><option value="draft">Borrador</option><option value="looks" selected>Normal</option><option value="delivery">Final</option></select>
                 <div class="row">
-                  <label class="field">Modelo de Claude<select id="model"><option value="sonnet">Sonnet · gasta menos de tu plan</option><option value="opus">Opus · máxima calidad</option></select></label>
+                  <label class="field">IA que compone el video<select id="model"></select></label>
                   <label class="field">Nombre del archivo<input id="videoName" placeholder="video-1" /></label>
                 </div>
                 <label class="check"><input type="checkbox" id="sfx" checked /> Efectos de sonido en cada transición (whoosh, glitch, destello…)</label>
@@ -921,13 +927,13 @@ function initSongGen() {
   fillClients(); state.refillGen = fillClients;
   $("#gaGo").onclick = async () => {
     const client = $("#gaClient").value; if (!client) return toast("Elige para qué cliente es la música: Claude necesita ver su web y su contenido.", true);
-    const btn = $("#gaGo"); btn.disabled = true; btn.textContent = "Claude está componiendo… (≈15 s)";
+    const btn = $("#gaGo"); btn.disabled = true; btn.textContent = "La IA está componiendo… (≈15 s)";
     try {
       const r = await api("/api/music/compose", { client, hint: $("#gaHint").value, songSeconds: $("#gaDur").value, videoSeconds: $("#duration")?.value ? parseInt($("#duration").value) : 20, format: $("#format")?.value, model: $("#gaModel").value, notes: $("#notes")?.value ?? "", brand: $("#brand")?.value ?? "" });
       await load(r.id);
       showNewSong(r.id, r.why);
     } catch (e) { toast(e.message, true); }
-    btn.disabled = false; btn.textContent = "✨ Crear música con Claude";
+    btn.disabled = false; btn.textContent = "✨ Crear la música";
   };
   $("#gsDice").onclick = () => { $("#gsSeed").value = 1 + Math.floor(Math.random() * 9999); };
   $("#gsGo").onclick = async () => {
@@ -1338,7 +1344,7 @@ const isActive = (r) => ["trabajando", "en cola"].includes(r.status);
 async function loadVideos() { state.videos = (await api("/api/videos")).videos; return state.videos; }
 
 function filteredVideos() {
-  return state.videos.filter((v) => (!state.vClient || vKey(v) === state.vClient) && (!state.vNet || (v.network ?? "Plantillas") === state.vNet));
+  return state.videos.filter((v) => (!state.vClient || (state.vClient === "__drive" ? !!v.drive : vKey(v) === state.vClient)) && (!state.vNet || (v.network ?? "Plantillas") === state.vNet));
 }
 
 function refreshVideosView() { if (state.tab === "videos" && $("#vGrid")) { renderVideosSide(); drawGrid(); } }
@@ -1372,11 +1378,11 @@ function drawGrid() {
 
 function videoCard(v, onOpen) {
   const b = document.createElement("button"); b.className = "vcard" + (v.w / v.h > 1.2 ? " wide" : "");
-  b.innerHTML = `<div class="vthumb"><img loading="lazy" alt=""><span class="exp" hidden>exp</span><span class="pill l"></span><span class="pill r"></span><span class="play-ico">▶</span></div><div class="vmeta"><b></b><small></small></div>`;
+  b.innerHTML = `<div class="vthumb"><img loading="lazy" alt=""><span class="exp" hidden>exp</span><span class="pill l"></span><span class="pill r"></span><span class="dv" hidden title="Ya está en Drive">☁ Drive</span><span class="play-ico">▶</span></div><div class="vmeta"><b></b><small></small></div>`;
   const thumb = $(".vthumb", b);
   thumb.style.setProperty("--ar", v.w && v.h ? v.w / v.h : 0.5625);
   const img = $("img", b); img.src = posterUrl(v); img.onerror = () => (img.style.display = "none");
-  $(".exp", b).hidden = !v.experimental;
+  $(".exp", b).hidden = !v.experimental; $(".dv", b).hidden = !v.drive;
   $(".pill.l", b).textContent = v.network ?? "Plantilla";
   $(".pill.r", b).textContent = mmss(v.duration);
   $("b", b).textContent = v.name;
@@ -1440,7 +1446,7 @@ function renderVideoDetail(box, v, opts = {}) {
     ["Canción", v.track ? `${v.track.artist ? v.track.artist + " — " : ""}${v.track.title ?? v.track.id}${v.start != null ? ` (desde ${fmt(v.start)})` : ""}` : "—"],
     ["Creado", fmtDate(v.createdAt)],
   ];
-  if (v.model) meta.push(["Hecho con", `Claude ${v.model === "opus" ? "Opus" : "Sonnet"} + HyperFrames`]);
+  if (v.model) meta.push(["Hecho con", `${aiLabel(v.model)} + HyperFrames`]);
   const dl = $(".vd-meta", box);
   for (const [k, val] of meta) { const dt = document.createElement("dt"), dd = document.createElement("dd"); dt.textContent = k; dd.textContent = val; dl.append(dt, dd); }
 
@@ -2334,7 +2340,7 @@ function initWizard() {
   fillPlatforms();
   $("#duration").value = localGet("factory.duration") ?? "15";
   $("#duration").onchange = () => { localSet("factory.duration", $("#duration").value); setDur(); wizPlanSoon(); };
-  $("#model").value = localGet("factory.model") ?? "sonnet";
+  $("#model").innerHTML = agentOptionsHtml(localGet("factory.model"));
   $("#model").onchange = () => { localSet("factory.model", $("#model").value); updateSummary(); };
   $("#quality").value = localGet("factory.quality") ?? "looks";
   const syncQ = () => $$("#qualitySeg button").forEach((b) => b.classList.toggle("on", b.dataset.q === $("#quality").value));
@@ -2516,12 +2522,12 @@ function updateSummary() {
   const q = { draft: "Borrador", looks: "Normal", delivery: "Final" }[$("#quality").value];
   const rows = [["Cliente", client || "—"], ["Formato", p ? `${p.network} ${p.label} · ${p.w}×${p.h}` : "—"], ["Duración", `${state.dur} s`],
     ["Pista", state.track ? (state.track.title ?? state.track.id) : "—"], ["Fragmento", state.track ? `${fmt(state.start).slice(0, -3)} – ${fmt(state.start + state.dur).slice(0, -3)}` : "—"],
-    ["Cortes previstos", wz.plan ? String(wz.plan.plan.length) : "—"], ["Calidad", q], ["Modelo", $("#model").value === "opus" ? "Opus" : "Sonnet"]];
+    ["Cortes previstos", wz.plan ? String(wz.plan.plan.length) : "—"], ["Calidad", q], ["IA", aiLabel($("#model").value)]];
   $("#ficha").innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join("");
   const miss = missing(wz.step);
   $("#missing").innerHTML = miss.map((m) => `<span>⚠ ${m}</span>`).join("");
   $("#wzNext").disabled = !!miss.length && wz.step < 4 || (wz.step === 4 && !!missing(3).length);
-  $("#wzModel").textContent = $("#model").value === "opus" ? "Claude Opus" : "Claude Sonnet";
+  $("#wzModel").textContent = aiLabel($("#model").value);
   $("#phoneFmt").textContent = p ? `${p.w / p.h < 1 ? "9:16" : p.w === p.h ? "1:1" : "16:9"} ${p.network}` : "";
   $("#phText").textContent = $("#hook").value || $("#hook").placeholder || "";
   $("#phName").textContent = client ?? "";
@@ -2544,10 +2550,17 @@ async function renderVideos() {
   const v = $("#v-videos");
   v.innerHTML = `<div class="page-h"><div><span class="eyebrow">Galería</span><h1>Videos</h1></div><span class="hint" id="vCount"></span><span class="grow"></span><button class="btn" id="vSelBtn" type="button">☑ Seleccionar</button><select id="vNet" aria-label="Filtrar por red social"></select></div>
     <div class="filters" id="vFilters"></div><div class="runs runs-box"></div><div id="vGrid" class="grid"></div>
-    <div class="selbar" id="selBar" hidden><b id="selN"></b><span class="grow"></span><button class="btn" id="selAll" type="button">Seleccionar todos</button><button class="btn danger" id="selDel" type="button">🗑 Eliminar</button></div>`;
+    <div class="selbar" id="selBar" hidden><b id="selN"></b><span class="grow"></span><button class="btn" id="selAll" type="button">Seleccionar todos</button><button class="btn" id="selDrive" type="button">☁ Enviar a Drive</button><button class="btn danger" id="selDel" type="button">🗑 Eliminar</button></div>`;
   state.vSelMode = false; state.vSel.clear();
   $("#vSelBtn").onclick = () => { state.vSelMode = !state.vSelMode; if (!state.vSelMode) state.vSel.clear(); drawGrid(); updateSelBar(); };
   $("#selAll").onclick = () => { const l = filteredVideos(); const all = l.every((v) => state.vSel.has(v.path)); l.forEach((v) => (all ? state.vSel.delete(v.path) : state.vSel.add(v.path))); drawGrid(); updateSelBar(); };
+  $("#selDrive").onclick = async () => {
+    const vs = state.videos.filter((v) => state.vSel.has(v.path)); if (!vs.length) return toast("Elige primero los reels.", true);
+    const btn = $("#selDrive"); btn.disabled = true; btn.textContent = "Enviando…";
+    try { const r = await api("/api/drive/upload", { paths: vs.map((v) => v.path) }); await loadVideos(); refreshVideosView(); toast(r.ok ? `${r.sent} reel${r.sent === 1 ? "" : "s"} en Drive › ${r.folder}` : `Subidos ${r.sent}; fallaron ${r.failed.length}: ${r.failed[0]}`, !r.ok); }
+    catch (e) { toast(e.message, true); }
+    btn.disabled = false; btn.textContent = "☁ Enviar a Drive";
+  };
   $("#selDel").onclick = () => { const vs = state.videos.filter((v) => state.vSel.has(v.path)); if (vs.length) confirmDelete(vs, afterDelete); };
   $("#vGrid").innerHTML = '<div class="vempty">Cargando…</div>';
   await loadVideos();
@@ -2563,6 +2576,7 @@ function renderVideosSide() {
     b.textContent = `${label} · ${n}`; b.onclick = () => { state.vClient = key; renderVideosSide(); drawGrid(); }; box.append(b);
   };
   add("Todos", null, state.videos.length);
+  const nd = state.videos.filter((v) => v.drive).length; if (nd) add("☁ En Drive", "__drive", nd);
   for (const [k, n] of Object.entries(counts).sort(([a], [b]) => a.localeCompare(b, "es"))) add(k, k, n);
 }
 
@@ -2584,7 +2598,7 @@ async function renderMusica() {
       <section class="card2 mk" style="margin-top:16px">
         <div class="wz-card-h"><h3>Crear una canción nueva</h3><span class="hint">¿Cómo quieres crearla?</span></div>
         <div class="modes2" id="mkModes">
-          <button type="button" class="mode on" data-m="ai"><b>✨ A medida de un cliente</b><small>Claude lee su web y su contenido y decide cómo debe sonar</small></button>
+          <button type="button" class="mode on" data-m="ai"><b>✨ A medida de un cliente</b><small>La IA lee su web y su contenido y decide cómo debe sonar</small></button>
           <button type="button" class="mode" data-m="man"><b>🎛️ La armo yo</b><small>Eliges el estilo, la velocidad y el ánimo</small></button>
         </div>
 
@@ -2592,11 +2606,11 @@ async function renderMusica() {
           <label class="field">¿Para qué cliente?<select id="gaClient"></select></label>
           <label class="field" style="margin-top:12px">¿Qué sensación debe transmitir? <span class="hint">(opcional)</span><input id="gaHint" placeholder="Ej.: antojo y fiesta, algo bailable" /></label>
           <div class="ideas" id="gaIdeas"></div>
-          <button class="btn primary wide big" id="gaGo" type="button">✨ Crear música con Claude</button>
-          <p class="hint center" style="margin:8px 0 0">Tarda unos 15 s y usa una llamada corta de tu plan de Claude.</p>
+          <button class="btn primary wide big" id="gaGo" type="button">✨ Crear la música</button>
+          <p class="hint center" style="margin:8px 0 0">Tarda unos 15 s y usa una llamada corta de la IA que elijas.</p>
           <details class="more"><summary>Más opciones</summary>
             <div class="row" style="margin:10px 0 0"><label class="field">Duración (segundos)<input id="gaDur" type="number" min="20" max="150" value="45" style="width:110px" /></label>
-              <label class="field">Modelo de Claude<select id="gaModel"><option value="sonnet">Sonnet · gasta menos</option><option value="opus">Opus · más cuidado</option></select></label></div>
+              <label class="field">IA que decide la música<select id="gaModel"></select></label></div>
           </details>
         </div>
 
@@ -2625,6 +2639,7 @@ async function renderMusica() {
     </div>
     <aside><section class="card2" style="margin:16px 0 0"><div class="wz-card-h"><h3>Procesos</h3></div><div class="runs runs-box"></div><div class="tool-cards"></div></section></aside></div>`;
   initSongGen(); bindFetch();
+  $("#gaModel").innerHTML = aiOptionsHtml(aiDefault());
   // dos caminos
   $$("#mkModes .mode").forEach((b) => (b.onclick = () => { $$("#mkModes .mode").forEach((x) => x.classList.toggle("on", x === b)); $("#mkAi").hidden = b.dataset.m !== "ai"; $("#mkMan").hidden = b.dataset.m !== "man"; }));
   // ideas rápidas
@@ -2681,12 +2696,20 @@ async function renderAjustes() {
   const line = (label, k, desc) => `<div class="tool-line"><i class="${t[k]?.ok ? "dot-ok" : "dot-bad"}"></i><b>${label}</b><span class="hint">${desc}</span>${t[k]?.ok ? `<code>${esc(t[k].version ?? "instalado")}</code>` : `<code>${esc(t[k]?.fix ?? "—")}</code>`}</div>`;
   v.innerHTML = `<div class="page-h"><div><span class="eyebrow">Preferencias</span><h1>Ajustes</h1></div></div>
     <div class="set-grid">
+      <section class="card2"><div class="wz-card-h"><h3>Inteligencia artificial</h3></div>
+        <p class="hint" style="margin:0 0 12px">La IA que corrige y traduce los subtítulos y decide la música. Cada una usa tu sesión en su propia herramienta; no hace falta una clave de API (salvo Gemini sin sesión).</p>
+        <label class="field">IA por defecto<select id="aiText">${aiOptionsHtml(state.ai?.text)}</select></label>
+        <div class="row" style="margin:10px 0 0"><button class="btn" id="aiTest" type="button">Probar esta IA</button><span class="hint" id="aiTestOut"></span></div>
+        <div class="ailist" id="aiList"></div>
+        <label class="field" style="margin-top:14px">Clave de Gemini <small>(opcional: si no tienes sesión de Google en la herramienta)</small>
+          <span class="gs-seed"><input id="aiKey" type="password" placeholder="${state.ai?.providers?.find((p) => p.id === "gemini")?.keySet ? "••••••••  (guardada)" : "AIza…"}" autocomplete="off" style="flex:1" /><button class="btn" id="aiKeySave" type="button">Guardar</button><button class="btn" id="aiKeyDel" type="button">Quitar</button></span></label>
+        <p class="hint" style="margin:10px 0 0">«Video con IA» necesita una IA que escriba archivos y ejecute comandos: <b>Claude Code</b> (recomendada) o <b>ChatGPT (Codex)</b> (experimental). Gemini solo responde preguntas cortas por ahora.</p></section>
       <section class="card2"><div class="wz-card-h"><h3>Herramientas</h3></div>
         ${line("Claude Code", "claude", "compone los videos y la música")}${line("ffmpeg", "ffmpeg", "corta audio y video")}${line("whisper", "whisper", "transcribe la letra")}${line("yt-dlp", "ytdlp", "descarga de enlaces")}
         <div class="tool-line"><i class="${state.sfx?.earshot ? "dot-ok" : "dot-bad"}"></i><b>Earshot</b><span class="hint">efectos de sonido generados</span><code>${state.sfx?.earshot ? "instalado" : "uv tool install earshot"}</code></div>
         <p class="hint" style="margin-top:10px">La factory no instala nada por su cuenta: si falta algo, copia el comando y ejecútalo tú.</p></section>
       <section class="card2"><div class="wz-card-h"><h3>Valores por defecto</h3></div>
-        <label class="field">Modelo de Claude<select id="setModel"><option value="sonnet">Sonnet · gasta menos de tu plan</option><option value="opus">Opus · máxima calidad</option></select></label>
+        <label class="field">IA que compone «Video con IA»<select id="setModel">${agentOptionsHtml(localGet("factory.model"))}</select></label>
         <label class="field" style="margin-top:12px">Calidad de render<select id="setQ"><option value="draft">Borrador (rápido)</option><option value="looks">Normal</option><option value="delivery">Final (máxima)</option></select></label>
         <label class="check"><input type="checkbox" id="setSfx" /> Efectos de sonido en las transiciones</label>
         <p class="hint" style="margin-top:12px">Se guardan en este navegador.</p></section>
@@ -2695,7 +2718,23 @@ async function renderAjustes() {
         <div class="tool-line"><b>projects/</b><span class="hint">proyectos HyperFrames, editables</span></div><div class="tool-line"><b>output/</b><span class="hint">videos terminados</span></div></section>
       <section class="card2"><div class="wz-card-h"><h3>Música y derechos</h3></div><p class="hint">Una canción comercial dentro de un video que subes no está cubierta por la biblioteca de música de Instagram. Las pistas descargadas son solo experimentales; usa música propia, generada con código o con licencia.</p></section>
     </div>`;
-  $("#setModel").value = localGet("factory.model") ?? "sonnet"; $("#setModel").onchange = () => localSet("factory.model", $("#setModel").value);
+  const aiList = $("#aiList");
+  for (const p of state.ai?.providers ?? []) {
+    const d = document.createElement("div"); d.className = "ai-row";
+    d.innerHTML = `<i class="${p.ready ? "dot-ok" : p.installed ? "dot-warn" : "dot-bad"}"></i><b></b><span class="hint"></span>`;
+    $("b", d).textContent = p.label; $(".hint", d).textContent = p.ready ? `${p.short}: listo` : p.note;
+    aiList.append(d);
+  }
+  $("#aiText").onchange = async () => { try { const r = await api("/api/ai/config", { text: $("#aiText").value }); state.ai = r.ai; toast("IA por defecto guardada"); } catch (e) { toast(e.message, true); } };
+  $("#aiTest").onclick = async () => {
+    const out = $("#aiTestOut"), btn = $("#aiTest"); btn.disabled = true; out.textContent = "Probando…";
+    try { const r = await api("/api/ai/test", { spec: $("#aiText").value }); out.textContent = r.ok ? `✓ Responde bien (${(r.ms / 1000).toFixed(1)} s)` : `✕ ${r.error}`; out.style.color = r.ok ? "var(--ok)" : "var(--warn)"; } catch (e) { out.textContent = `✕ ${e.message}`; }
+    btn.disabled = false;
+  };
+  const saveKey = async (v) => { try { const r = await api("/api/ai/config", { geminiKey: v }); state.ai = r.ai; $("#aiKey").value = ""; $("#aiKey").placeholder = v ? "••••••••  (guardada)" : "AIza…"; toast(v ? "Clave de Gemini guardada" : "Clave de Gemini quitada"); } catch (e) { toast(e.message, true); } };
+  $("#aiKeySave").onclick = () => { const v = $("#aiKey").value.trim(); if (!v) return toast("Pega la clave primero.", true); saveKey(v); };
+  $("#aiKeyDel").onclick = () => saveKey("");
+  $("#setModel").onchange = () => localSet("factory.model", $("#setModel").value);
   $("#setQ").value = localGet("factory.quality") ?? "looks"; $("#setQ").onchange = () => localSet("factory.quality", $("#setQ").value);
   $("#setSfx").checked = localGet("factory.sfx") !== "0"; $("#setSfx").onchange = () => localSet("factory.sfx", $("#setSfx").checked ? "1" : "0");
 }
@@ -2712,7 +2751,7 @@ function lyricsDialog(client, source, opts = {}) {
   const fonts = (state.lyricFonts ?? []).map((f) => `<option>${esc(f)}</option>`).join("");
   const pos = (state.lyricPositions ?? []).map((p) => `<option value="${p.id}">${esc(p.label)}</option>`).join("");
   dlg.innerHTML = `<div class="ly-head"><span class="ic">▤</span><div><h3>${opts.title ?? "Subtitular el video"}</h3><span class="hint">Video activo: <b id="lyName"></b></span></div>
-      <span class="chip on">Whisper local + Claude</span>
+      <span class="chip on">Voz local + IA a elegir</span>
       <div class="modes"><span class="hint">Idioma en pantalla</span><div class="seg2" id="lyShow"><button data-v="both" class="on">Español + Inglés</button><button data-v="es">Solo ES</button><button data-v="en">Solo EN</button></div><button class="roundbtn" id="lyX" aria-label="Cerrar">✕</button></div></div>
     <div class="ly-body"><div class="ly-left">
       <div class="wz-card-h" style="margin:0"><h3>Efectos cinéticos de subtítulos</h3><span class="hint">6 preajustes</span></div>
@@ -2724,7 +2763,7 @@ function lyricsDialog(client, source, opts = {}) {
       </div>
       <div class="row" style="margin:0"><label class="field grow">La canción está en<select id="lyLang"><option value="auto">Detectar</option><option value="es">Español</option><option value="en">Inglés</option></select></label>
         <label class="field grow">Destino<select id="lyFmt">${nets}</select></label></div>
-      <div class="durbox"><div class="row" style="margin:0;align-items:flex-end"><label class="field">Duración exacta (s)<input type="number" id="lyDur" min="3" step="0.5" style="width:110px" /></label><label class="field">Empieza en el segundo<input type="number" id="lyFrom" min="0" step="0.5" value="0" style="width:110px" /></label><label class="field">Calidad<select id="lyQ"><option value="draft">Borrador (rápido)</option><option value="looks" selected>Normal</option><option value="delivery">Final (lenta)</option></select></label></div>
+      <div class="durbox"><div class="row" style="margin:0;align-items:flex-end"><label class="field">Duración exacta (s)<input type="number" id="lyDur" min="3" step="0.5" style="width:110px" /></label><label class="field">Empieza en el segundo<input type="number" id="lyFrom" min="0" step="0.5" value="0" style="width:110px" /></label><label class="field">IA<select id="lyAi">${aiOptionsHtml(aiDefault())}</select></label><label class="field">Calidad<select id="lyQ"><option value="draft">Borrador (rápido)</option><option value="looks" selected>Normal</option><option value="delivery">Final (lenta)</option></select></label></div>
         <div class="chips" id="lyChips" style="margin-top:10px"></div>
         <p class="hint" id="lyDurInfo" style="margin:8px 0 0"></p></div>
       <p class="hint" id="lyEff" style="margin-top:12px"></p>
@@ -2803,7 +2842,7 @@ function lyricsDialog(client, source, opts = {}) {
   $("#lyNo", dlg).onclick = $("#lyX", dlg).onclick = close;
   dlg.onclose = () => dlg.remove();
   $("#lyGo", dlg).onclick = async () => {
-    const b = { client, source, name: opts.name ?? `reel-${slug(String(opts.label ?? source).replace(/\.mp4$/i, ""))}`.slice(0, 50), fromOutput: !!opts.fromOutput, style: S.style, accent: S.color, show: S.show, font: S.font, position: S.pos, language: $("#lyLang", dlg).value, format: $("#lyFmt", dlg).value, from: Number($("#lyFrom", dlg).value) || 0, duration: Number($("#lyDur", dlg).value) || null, full, quality: $("#lyQ", dlg).value };
+    const b = { client, source, name: opts.name ?? `reel-${slug(String(opts.label ?? source).replace(/\.mp4$/i, ""))}`.slice(0, 50), fromOutput: !!opts.fromOutput, style: S.style, accent: S.color, show: S.show, font: S.font, position: S.pos, language: $("#lyLang", dlg).value, format: $("#lyFmt", dlg).value, from: Number($("#lyFrom", dlg).value) || 0, duration: Number($("#lyDur", dlg).value) || null, full, quality: $("#lyQ", dlg).value, model: $("#lyAi", dlg).value };
     try { const { id } = await api("/api/lyrics", b); dlg.close(); pollRuns(); if (opts.onStarted) opts.onStarted(id); else bgRun(id, "Subtítulos del video"); } catch (e) { toast(e.message, true); }
   };
   dlg.showModal();
@@ -2972,6 +3011,18 @@ async function deleteClientDialog(name) {
     } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = "Reintentar"; }
   };
 }
+
+
+
+// «Video con IA» necesita un agente que escriba archivos: Claude Code o ChatGPT (Codex).
+const agentOptions = () => (state.ai?.options ?? []).filter((o) => /^(claude|codex):/.test(o.value)).map((o) => ({ ...o, label: o.value.startsWith("codex:") ? `${o.label} · experimental` : o.label }));
+const normSpec = (v) => (!v ? "claude:sonnet" : v.includes(":") ? v : `claude:${v}`);
+const agentOptionsHtml = (selected) => { const want = normSpec(selected), list = agentOptions(), pick = list.some((o) => o.value === want) ? want : list[0]?.value; return list.map((o) => `<option value="${esc(o.value)}"${o.value === pick ? " selected" : ""}>${esc(o.label)}</option>`).join(""); };
+const aiLabel = (m) => { const [p, ...r] = normSpec(m).split(":"), model = r.join(":"); return `${{ claude: "Claude", codex: "ChatGPT", gemini: "Gemini" }[p] ?? p}${model ? " " + model[0].toUpperCase() + model.slice(1) : ""}`; };
+
+// ===================== IA elegible (Claude, ChatGPT, Gemini) =====================
+const aiOptionsHtml = (selected) => (state.ai?.options ?? []).map((o) => `<option value="${esc(o.value)}"${o.value === selected ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+const aiDefault = () => { const t = state.ai?.text; return state.ai?.options?.some((o) => o.value === t) ? t : state.ai?.options?.[0]?.value ?? "claude:sonnet"; };
 
 // Si la interfaz o el servidor cambian, avisa para recargar (evita usar una página vieja sin saberlo).
 let knownVersion = null;
