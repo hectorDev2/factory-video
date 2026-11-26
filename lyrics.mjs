@@ -25,9 +25,9 @@ const LINES_SCHEMA = {
   properties: {
     lang: { enum: ["es", "en", "otro"] },
     lines: {
-      type: "array", maxItems: 160,
+      type: "array", maxItems: 140,
       items: { type: "object", additionalProperties: false, required: ["from", "to", "es", "en"],
-        properties: { from: { type: "integer", minimum: 0 }, to: { type: "integer", minimum: 0 }, es: { type: "string", maxLength: 120 }, en: { type: "string", maxLength: 120 }, hot: { type: "boolean" } } },
+        properties: { from: { type: "integer", minimum: 0 }, to: { type: "integer", minimum: 0 }, es: { type: "string", maxLength: 120 }, en: { type: "string", maxLength: 120 }, hot: { type: "boolean" }, kes: { type: "string", maxLength: 40 }, ken: { type: "string", maxLength: 40 } } },
     },
   },
 };
@@ -116,7 +116,10 @@ export function buildLines(words, spec, main, sub, duration) {
       ws = parts.map((w) => { const d = ((w.length + 1) / total) * Math.max(wEnd - t0, 0.5); const o = { w, s: at, e: at + d }; at += d; return o; });
     }
     ws = ws.map((w) => ({ ...w, s: r3(Math.max(0, w.s)), e: r3(Math.min(w.e, t1)) })).map((w) => ({ ...w, e: Math.max(w.e, w.s + 0.08) }));
-    out.push({ t0: r3(t0), t1: r3(t1), words: ws, hot: !!l.hot, sub: sub ? String(l[sub] ?? "").trim() : "" });
+    // palabra clave que marcó Claude (kes / ken según el idioma que se muestra): se agranda y se resalta
+    const norm = (x) => String(x ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N}]/gu, "");
+    const kw = norm(l["k" + main]), key = kw ? parts.findIndex((p) => norm(p) === kw) : -1;
+    out.push({ t0: r3(t0), t1: r3(t1), words: ws, hot: !!l.hot, ...(key >= 0 ? { key } : {}), sub: sub ? String(l[sub] ?? "").trim() : "" });
   }
   return out;
 }
@@ -138,11 +141,11 @@ export const LYRIC_POSITIONS = { bottom: "Inferior", third: "Tercio inferior", c
 const FONT_STYLE = { karaoke: "Poppins", pop: "Montserrat", neon: "Outfit", slam: "Archivo Black", glitch: "Space Mono" };
 const WEIGHT_STYLE = { karaoke: 800, pop: 800, neon: 600, slam: 400, glitch: 700 };
 
-function wordHtml(style, id, text) {
+function wordHtml(style, id, text, isKey) {
   const t = esc(text);
-  if (style === "karaoke") return `<span class="w" id="${id}"><span class="b">${t}</span><span class="f" aria-hidden="true">${t}</span></span>`;
-  if (style === "pop") return `<span class="w" id="${id}"><span class="bg"></span><span class="t">${t}</span></span>`;
-  return `<span class="w" id="${id}">${t}</span>`;
+  if (style === "karaoke") return `<span class="w${isKey ? " key" : ""}" id="${id}"><span class="b">${t}</span><span class="f" aria-hidden="true">${t}</span></span>`;
+  if (style === "pop") return `<span class="w${isKey ? " key" : ""}" id="${id}"><span class="bg"></span><span class="t">${t}</span></span>`;
+  return `<span class="w${isKey ? " key" : ""}" id="${id}">${t}</span>`;
 }
 
 // Animación de cada efecto (corre dentro de la escena; todo es función del tiempo de la línea de tiempo).
@@ -173,7 +176,22 @@ const ENTRY = {
   right: `{ opacity: 0, x: 120 }, { opacity: 1, x: 0, duration: 0.22, ease: "expo.out" }`,
   zoom: `{ opacity: 0, scale: 0.55 }, { opacity: 1, scale: 1, duration: 0.2, ease: "back.out(2.2)" }`,
   drop: `{ opacity: 0, y: -90 }, { opacity: 1, y: 0, duration: 0.24, ease: "bounce.out" }`,
+  blur: `{ opacity: 0, scale: 1.28, filter: "blur(22px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.3, ease: "power3.out" }`,
 };
+
+// Cómo sale cada línea (varía en el modo dinámico). Corre dentro de la escena: (line, ws, t1, t0, L).
+const EXIT = {
+  fade: `tl.to("#" + line, { opacity: 0, duration: 0.14, ease: "power2.in" }, Math.max(t1 - 0.14, t0 + 0.2));`,
+  blur: `tl.to("#" + line, { opacity: 0, scale: 1.12, filter: "blur(18px)", duration: 0.22, ease: "power2.in" }, Math.max(t1 - 0.22, t0 + 0.2));`,
+  slideL: `tl.to("#" + line, { opacity: 0, x: -170, duration: 0.2, ease: "power3.in" }, Math.max(t1 - 0.2, t0 + 0.2));`,
+  slideR: `tl.to("#" + line, { opacity: 0, x: 170, duration: 0.2, ease: "power3.in" }, Math.max(t1 - 0.2, t0 + 0.2));`,
+  shrink: `tl.to("#" + line, { opacity: 0, scale: 0.5, duration: 0.2, ease: "back.in(2)" }, Math.max(t1 - 0.2, t0 + 0.2));`,
+  scatter: `const e0 = Math.max(t1 - 0.28, t0 + 0.2); ws.forEach((w, k) => { const d = k % 2 ? 1 : -1; tl.to("#" + w.id, { opacity: 0, x: d * (70 + k * 16), y: -50 - (k % 3) * 28, rotation: d * (10 + k * 3), duration: 0.26, ease: "power2.in" }, e0 + k * 0.02); }); if (L.hasSub) tl.to("#" + line + "s", { opacity: 0, duration: 0.16 }, e0);`,
+};
+// Efecto por defecto de cada estilo cuando no es dinámico.
+const ENTRY_DEFAULT = { karaoke: "up", pop: "up", neon: "blur", slam: "zoom", glitch: "left" };
+const EXIT_DEFAULT = { karaoke: "fade", pop: "shrink", neon: "blur", slam: "scatter", glitch: "slideR" };
+
 
 export function sceneHtml({ lines, style, accent, fmt, duration, font, position }) {
   const portrait = fmt.h > fmt.w;
@@ -190,23 +208,29 @@ export function sceneHtml({ lines, style, accent, fmt, duration, font, position 
   const fxs = [...new Set(lines.map((l) => l.fx ?? style))].filter((f) => CSS_STYLE[f]);
   const fontOf = (f) => (LYRIC_FONTS.includes(font) ? font : FONT_STYLE[f]);
   const css = `
-    [data-composition-id="lyrics"] { position: absolute; inset: 0; overflow: visible; --accent: ${accent}; }
+    [data-composition-id="lyrics"] { position: absolute; inset: 0; overflow: visible; --accent: ${accent}; --key: ${accent}; }
     #lyrics-stage { position: absolute; inset: 0; overflow: visible; }
     #lyrics-scrim { position: absolute; left: 0; right: 0; bottom: 0; height: ${Math.round(fmt.h * 0.5)}px; background: linear-gradient(to top, rgba(0,0,0,.8), rgba(0,0,0,0)); }
     .ln { position: absolute; left: ${pad}px; right: ${pad}px; text-align: center; opacity: 0; color: #fff; text-shadow: 0 4px 22px rgba(0,0,0,.65); }
     ${Object.entries(POS).map(([k, v]) => `.ln.p-${k} { ${v} }`).join("\n    ")}
     ${fxs.map((f) => `.ln.fx-${f} { font-family: "${fontOf(f)}", sans-serif; font-weight: ${WEIGHT_STYLE[f]}; }`).join("\n    ")}
-    .main { display: inline; line-height: 1.22; background: rgba(0, 0, 0, .36); padding: .06em .32em; border-radius: .32em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+    .fx-slam .main, .fx-glitch .main { background: none; padding: 0; }
+    .fx-slam .w, .fx-glitch .w { background: rgba(0, 0, 0, .36); padding: .03em .16em; border-radius: .26em; }
+    .w.key { font-size: 1.38em; }
+    .w.key, .w.key .b, .w.key .t { color: var(--key) !important; }
+    .w.key .f { color: var(--key) !important; }
+    .fx-pop .w.key, .fx-pop .w.key .t { color: #fff !important; }
+    .main { display: inline; line-height: 1.38; background: rgba(0, 0, 0, .36); padding: .06em .32em; border-radius: .32em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
     .sub { margin-top: .5em; font-family: "Inter", sans-serif; font-weight: 500; font-style: italic; color: rgba(255,255,255,.9); line-height: 1.2; }
     ${fxs.map((f) => CSS_STYLE[f].replace(/(^|\})(\.w)/g, `$1.fx-${f} $2`)).join("\n    ")}`;
   const body = lines.map((l, i) => {
     const fx = CSS_STYLE[l.fx] ? l.fx : style, pos = POS[l.pos] ? l.pos : (POS[position] ? position : "bottom");
     const text = l.words.map((w) => w.w).join(" ");
     const size = Math.round(fontSizeFor(text, base) * (l.scale ?? 1));
-    const ws = l.words.map((w, k) => wordHtml(fx, `l${i}w${k}`, w.w)).join(" ");
-    return `<div class="ln fx-${fx} p-${pos}" id="l${i}"${l.color ? ` style="--accent:${l.color}"` : ""}><div class="main" style="font-size:${size}px">${ws}</div>${l.sub ? `<div class="sub" id="l${i}s" style="font-size:${Math.round(size * 0.5)}px">${esc(l.sub)}</div>` : ""}</div>`;
+    const ws = l.words.map((w, k) => wordHtml(fx, `l${i}w${k}`, w.w, k === l.key)).join(" ");
+    return `<div class="ln fx-${fx} p-${pos}" id="l${i}"${l.color || l.keyColor ? ` style="${l.color ? `--accent:${l.color};` : ""}${l.keyColor ? `--key:${l.keyColor};` : ""}"` : ""}><div class="main" style="font-size:${size}px">${ws}</div>${l.sub ? `<div class="sub" id="l${i}s" style="font-size:${Math.round(size * 0.5)}px">${esc(l.sub)}</div>` : ""}</div>`;
   }).join("\n      ");
-  const data = JSON.stringify(lines.map((l) => ({ t0: l.t0, t1: l.t1, hasSub: !!l.sub, fx: CSS_STYLE[l.fx] ? l.fx : style, entry: ENTRY[l.entry] ? l.entry : "up", w: l.words.map((w) => ({ s: w.s, e: w.e })) })));
+  const data = JSON.stringify(lines.map((l) => ({ t0: l.t0, t1: l.t1, hasSub: !!l.sub, fx: CSS_STYLE[l.fx] ? l.fx : style, entry: ENTRY[l.entry] ? l.entry : (ENTRY_DEFAULT[CSS_STYLE[l.fx] ? l.fx : style] ?? "up"), exit: EXIT[l.exit] ? l.exit : (EXIT_DEFAULT[CSS_STYLE[l.fx] ? l.fx : style] ?? "fade"), key: Number.isInteger(l.key) ? l.key : -1, w: l.words.map((w) => ({ s: w.s, e: w.e })) })));
   return `<!-- scene: lyrics -->
 <template>
   <style>${css}
@@ -223,6 +247,7 @@ export function sceneHtml({ lines, style, accent, fmt, duration, font, position 
       const tl = gsap.timeline({ paused: true });
       const MOT = { ${Object.entries(MOTION).map(([k, v]) => `${k}: (ws, line) => { ${v} }`).join(",\n        ")} };
       const ENT = { ${Object.entries(ENTRY).map(([k, v]) => `${k}: (line, at) => tl.fromTo("#" + line, ${v}, at)`).join(",\n        ")} };
+      const EXT = { ${Object.entries(EXIT).map(([k, v]) => `${k}: (line, ws, t1, t0, L) => { ${v} }`).join(",\n        ")} };
       LINES.forEach((L, i) => {
         const line = "l" + i;
         const ws = L.w.map((w, k) => ({ id: line + "w" + k, s: w.s, e: w.e }));
@@ -230,7 +255,8 @@ export function sceneHtml({ lines, style, accent, fmt, duration, font, position 
         ENT[L.entry](line, at);
         if (L.hasSub) tl.fromTo("#" + line + "s", { opacity: 0, y: 12 }, { opacity: 0.9, y: 0, duration: 0.25, ease: "power2.out" }, at + 0.12);
         MOT[L.fx](ws, line);
-        tl.to("#" + line, { opacity: 0, duration: 0.14, ease: "power2.in" }, Math.max(L.t1 - 0.14, L.t0 + 0.2));
+        if (L.key >= 0 && L.fx !== "slam" && ws[L.key]) tl.fromTo("#" + ws[L.key].id, { y: -34, rotation: -7 }, { y: 0, rotation: 0, duration: 0.32, ease: "back.out(3)" }, ws[L.key].s);
+        EXT[L.exit](line, ws, L.t1, L.t0, L);
         tl.set("#" + line, { opacity: 0, visibility: "hidden" }, L.t1);
       });
       window.__timelines["lyrics"] = tl;
@@ -265,9 +291,9 @@ export function planDynamic(lines, audioFile, accent) {
   const re = rank(energy), rs = rank(speed);
   const hue = hexHue(accent), comp = hsl((hue + 180) % 360, 95, 72);
   const tiers = {
-    high: { fx: ["slam", "glitch", "pop"], pos: ["center", "high"], scale: 1.2, entry: ["zoom", "drop"], color: [comp, accent] },
-    mid: { fx: ["pop", "neon", "karaoke"], pos: ["third", "bottom", "high"], scale: 1.0, entry: ["left", "right", "up"], color: [accent, "#ffffff"] },
-    low: { fx: ["karaoke", "neon"], pos: ["bottom", "third"], scale: 0.94, entry: ["up", "left"], color: [accent] },
+    high: { fx: ["slam", "glitch", "pop"], pos: ["center", "high"], scale: 1.2, entry: ["zoom", "drop", "blur"], exit: ["scatter", "shrink", "slideR"], color: [comp, accent] },
+    mid: { fx: ["pop", "neon", "karaoke"], pos: ["third", "bottom", "high"], scale: 1.0, entry: ["left", "blur", "right", "up"], exit: ["slideL", "blur", "slideR", "fade"], color: [accent, "#ffffff"] },
+    low: { fx: ["karaoke", "neon"], pos: ["bottom", "third"], scale: 0.94, entry: ["up", "blur"], exit: ["fade", "blur"], color: [accent] },
   };
   const count = { high: 0, mid: 0, low: 0 };
   let prev = {};
@@ -278,8 +304,12 @@ export function planDynamic(lines, audioFile, accent) {
     let fx = T.fx[c % T.fx.length], pos = T.pos[c % T.pos.length];
     if (fx === prev.fx) fx = T.fx[(c + 1) % T.fx.length];
     if (pos === prev.pos) pos = T.pos[(c + 1) % T.pos.length];
-    Object.assign(l, { fx, pos, scale: T.scale, entry: T.entry[c % T.entry.length], color: T.color[c % T.color.length], tier, score: Math.round(score * 100) / 100 });
-    prev = { fx, pos };
+    let exit = T.exit[c % T.exit.length];
+    if (exit === prev.exit) exit = T.exit[(c + 1) % T.exit.length];
+    const color = T.color[c % T.color.length];
+    Object.assign(l, { fx, pos, scale: T.scale, entry: T.entry[c % T.entry.length], exit, color, keyColor: color === accent ? comp : accent, tier, score: Math.round(score * 100) / 100 });
+    if (tier === "low") delete l.key; // las frases tranquilas se quedan tranquilas: sin palabra grande
+    prev = { fx, pos, exit };
   });
   return lines;
 }
@@ -320,6 +350,37 @@ function probe(file) {
   return Number(r.stdout) || 0;
 }
 
+// Claude corrige y traduce la letra. Una transcripción larga se manda por partes (~260 palabras, sin cortar una frase).
+export async function correctWords({ words, dur, model, step }) {
+  const CH = 260, parts = [];
+  let i = 0;
+  while (i < words.length) {
+    let e = Math.min(words.length, i + CH);
+    if (e < words.length) for (let k = e; k < Math.min(words.length - 1, e + 40); k++) if (words[k + 1].start - words[k].end > 0.5) { e = k + 1; break; }
+    parts.push([i, e]); i = e;
+  }
+  const lines = []; let lang = null;
+  for (const [n, [a, b]] of parts.entries()) {
+    if (parts.length > 1) step(`Claude corrige y traduce la letra (parte ${n + 1} de ${parts.length})`, 40 + Math.round((n / parts.length) * 14));
+    const numbered = words.slice(a, b).map((w, k) => `${a + k}:${w.text}`).join(" ");
+    const spec = await askJson(`Eres un editor de letras y subtítulos para videos. Abajo hay la transcripción automática (palabra por palabra, con su número de orden) de ${Math.round(words[b - 1].end - words[a].start)} s de una canción o un discurso. Puede tener errores.${parts.length > 1 ? `\nEsta es la parte ${n + 1} de ${parts.length} de una transcripción más larga${lang ? `; el idioma original ya se determinó: "${lang}"` : ""}.` : ""}
+
+Agrupa las palabras en líneas de 2 a 9 palabras seguidas (respeta los versos, las frases y las pausas naturales). Para cada línea indica "from" y "to" (números de la primera y la última palabra, ambos incluidos; las líneas van en orden y no se solapan; omite las palabras que sean ruido o claramente no sean letra). Escribe el texto de la línea en español ("es") y en inglés ("en"):
+- En el idioma original, corrige solo los errores que sean claros (palabras mal oídas, mayúsculas, puntuación mínima). No inventes letra.
+- En el otro idioma, traduce con naturalidad y sentido, conservando el tono (jerga, doble sentido, romanticismo…), no palabra por palabra. Que quepa en una línea del video (máx. ~60 caracteres).
+- "lang" es el idioma original de la letra ("es", "en" u "otro"; si es otro, traduce ambos desde el original).
+- Marca "hot": true solo en las frases más importantes o impactantes (el remate, la idea clave, el gancho): como máximo 1 de cada 10 líneas; en las demás, omite "hot".
+- En "kes" y "ken" pon UNA palabra de esa línea (tal como aparece escrita en la versión en español y en la inglesa) que sea la más importante o emotiva y deba resaltar. Hazlo en la mayoría de las líneas, pero omítelo si ninguna palabra destaca. Nunca pongas artículos ni preposiciones.
+- Sin groserías añadidas ni censura de más: refleja lo que se dice.
+
+Transcripción:
+${numbered}`, LINES_SCHEMA, model);
+    lang ??= spec.lang;
+    lines.push(...spec.lines);
+  }
+  return { lang: lang ?? "es", lines };
+}
+
 // deps = { HF, PLATFORMS, run } de generate.mjs (se pasan para no importarlo en círculo).
 export async function makeLyrics({ root, req, update, deps }) {
   const { HF, PLATFORMS, run } = deps;
@@ -345,7 +406,9 @@ export async function makeLyrics({ root, req, update, deps }) {
   step("Preparando el video y el audio", 8);
   const total = probe(src);
   const from = Math.max(0, Number(req.from) || 0);
-  const duration = Math.max(3, Math.min(Number(req.duration) || fmt.max, fmt.max, total - from || fmt.max));
+  // Sin duración elegida: hasta el máximo de la red. Con duración elegida (o «video completo»): lo que pidas, hasta 30 min.
+  const avail = total ? total - from : fmt.max;
+  const duration = Math.max(3, Math.min(req.full ? avail : Number(req.duration) || Math.min(fmt.max, avail), avail, 1800));
   const cut = ["-ss", String(from), "-t", String(duration), "-i", src];
   await run("ffmpeg", ["-y", "-v", "error", ...cut, "-an", "-vf", `scale=${fmt.w}:${fmt.h}:force_original_aspect_ratio=increase,crop=${fmt.w}:${fmt.h},fps=30`,
     "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-g", "30", "-pix_fmt", "yuv420p", path.join(project, "assets", "video.mp4")], root);
@@ -388,18 +451,7 @@ export async function makeLyrics({ root, req, update, deps }) {
   if (words.length < 3) throw new Error("No se oye letra en este fragmento (probé con el modelo multilingüe). Prueba con otro tramo o con una canción con voz clara.");
 
   step("Claude corrige y traduce la letra", 40);
-  const numbered = words.map((w, i) => `${i}:${w.text}`).join(" ");
-  const spec = await askJson(`Eres un editor de letras para videos musicales. Abajo hay la transcripción automática (palabra por palabra, con su número de orden) de ${Math.round(dur)} s de una canción o un discurso. Puede tener errores.
-
-Agrupa las palabras en líneas cantables de 2 a 9 palabras seguidas (respeta los versos y las pausas naturales). Para cada línea indica "from" y "to" (números de la primera y la última palabra, ambos incluidos; las líneas van en orden y no se solapan; omite las palabras que sean ruido o claramente no sean letra). Escribe el texto de la línea en español ("es") y en inglés ("en"):
-- En el idioma original, corrige solo los errores que sean claros (palabras mal oídas, mayúsculas, puntuación mínima). No inventes letra.
-- En el otro idioma, traduce con naturalidad y sentido, conservando el tono (jerga, doble sentido, romanticismo…), no palabra por palabra. Que quepa en una línea del video (máx. ~60 caracteres).
-- "lang" es el idioma original de la letra ("es", "en" u "otro"; si es otro, traduce ambos desde el original).
-- Marca "hot": true solo en las 2 a 4 frases más importantes o impactantes de todo el texto (el remate, la idea clave, el gancho); en las demás, omite "hot".
-- Sin groserías añadidas ni censura de más: refleja lo que se dice.
-
-Transcripción:
-${numbered}`, LINES_SCHEMA, req.model);
+  const spec = await correctWords({ words, dur, model: req.model, step });
 
   step("Armando los efectos", 55);
   const original = spec.lang === "en" ? "en" : "es";
