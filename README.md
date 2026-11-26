@@ -187,7 +187,7 @@ sequenceDiagram
   U->>UI: Efecto, idioma, red social y duración exacta
   UI->>S: Crear reel
   S->>S: Recortar al formato vertical y separar el audio
-  S->>W: Transcribir (Parakeet; Whisper de respaldo)
+  S->>W: Transcribir (Parakeet, con Whisper de respaldo)
   W-->>S: Palabras con inicio y fin
   S->>C: Agrupar en versos, corregir y traducir (1 llamada corta)
   C-->>S: Versos en español e inglés + frases clave
